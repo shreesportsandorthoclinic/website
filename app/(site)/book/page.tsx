@@ -6,10 +6,10 @@ import { clinic, photos } from "@/lib/content";
 import {
   appointmentTypes,
   bookingSteps,
-  calendarCells,
-  dateLabel,
-  MONTH_LABEL,
-  TODAY_DAY,
+  bookingWindow,
+  isoForOffset,
+  longLabelForOffset,
+  MAX_ADVANCE_DAYS,
   type Slot,
 } from "@/lib/schedule";
 
@@ -34,6 +34,11 @@ export default function BookPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState(false);
+
+  /* The bookable days: tomorrow through ten days out. Computed once so the
+     list is stable for the life of the page. `day` above is the offset into
+     this window (1–10), not a calendar date. */
+  const [window] = useState(bookingWindow);
 
   /* Contact-detail verification. The clinic only receives a request once the
      visitor proves they control the email address. */
@@ -138,7 +143,7 @@ export default function BookPage() {
   }
 
   const typeLabel = appointmentTypes.find((t) => t.key === type)?.name ?? "—";
-  const dayLabel = day ? dateLabel(day) : "—";
+  const dayLabel = day != null ? longLabelForOffset(day) : "—";
   const slotLabel = slot ?? "—";
 
   const setField = (key: keyof typeof emptyForm) => (value: string) =>
@@ -445,7 +450,7 @@ export default function BookPage() {
                   }}
                 >
                   <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 20 }}>
-                    {MONTH_LABEL}
+                    Choose a day
                   </span>
                   <span
                     style={{
@@ -455,128 +460,73 @@ export default function BookPage() {
                       color: "var(--color-neutral-600)",
                     }}
                   >
-                    Today · {TODAY_DAY} Sep
+                    Next {MAX_ADVANCE_DAYS} days
                   </span>
                 </div>
 
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(7,1fr)",
-                    gap: 6,
-                    marginBottom: 8,
+                    gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))",
+                    gap: 8,
                   }}
                 >
-                  {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        fontSize: 11,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "var(--color-neutral-600)",
-                        textAlign: "center",
-                      }}
-                    >
-                      {d}
-                    </span>
-                  ))}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 }}>
-                  {calendarCells().map((cell) =>
-                    cell.blank ? (
-                      <span key={cell.key} />
-                    ) : (
+                  {window.map((d) => {
+                    const selected = day === d.offset;
+                    return (
                       <button
-                        key={cell.key}
+                        key={d.offset}
                         type="button"
-                        disabled={cell.disabled}
-                        onClick={() => pickDay(cell.day)}
+                        disabled={d.closed}
+                        onClick={() => pickDay(d.offset)}
                         style={{
-                          aspectRatio: "1/1",
-                          minHeight: 46,
+                          minHeight: 58,
                           display: "flex",
                           flexDirection: "column",
                           alignItems: "center",
                           justifyContent: "center",
                           gap: 2,
-                          background: day === cell.day ? "var(--color-accent)" : "transparent",
-                          color:
-                            day === cell.day
-                              ? "var(--color-bg)"
-                              : cell.disabled
-                                ? "var(--color-neutral-400)"
-                                : "var(--color-text)",
+                          padding: "8px 6px",
+                          background: selected ? "var(--color-accent)" : "transparent",
+                          color: selected
+                            ? "var(--color-bg)"
+                            : d.closed
+                              ? "var(--color-neutral-400)"
+                              : "var(--color-text)",
                           border: `1px solid ${
-                            day === cell.day
+                            selected
                               ? "var(--color-accent)"
-                              : cell.disabled
+                              : d.closed
                                 ? "transparent"
                                 : "var(--color-divider)"
                           }`,
-                          borderRadius: 20,
-                          cursor: cell.disabled ? "not-allowed" : "pointer",
+                          borderRadius: 16,
+                          cursor: d.closed ? "not-allowed" : "pointer",
                           fontFamily: "var(--font-heading)",
-                          fontSize: 16,
-                          textDecoration: cell.disabled ? "line-through" : "none",
+                          fontSize: 15,
+                          textDecoration: d.closed ? "line-through" : "none",
                         }}
                       >
-                        {cell.day}
-                        <span
-                          style={{
-                            fontSize: 9,
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            textDecoration: "none",
-                          }}
-                        >
-                          {cell.note}
-                        </span>
+                        {d.label}
+                        {d.closed && (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Closed
+                          </span>
+                        )}
                       </button>
-                    ),
-                  )}
+                    );
+                  })}
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 18,
-                    marginTop: 18,
-                    fontSize: 12,
-                    color: "var(--color-neutral-700)",
-                  }}
-                >
-                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span
-                      style={{
-                        width: 12,
-                        height: 12,
-                        border: "1px solid var(--color-divider)",
-                        display: "inline-block",
-                      }}
-                    />
-                    Available
-                  </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span
-                      style={{ width: 12, height: 12, background: "var(--color-accent)", display: "inline-block" }}
-                    />
-                    Selected
-                  </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span
-                      style={{
-                        width: 12,
-                        height: 12,
-                        background: "var(--color-neutral-200)",
-                        display: "inline-block",
-                      }}
-                    />
-                    Unavailable
-                  </span>
-                </div>
+                <p style={{ marginTop: 16, fontSize: 12, color: "var(--color-neutral-700)" }}>
+                  Appointments can be requested from tomorrow up to {MAX_ADVANCE_DAYS} days ahead.
+                </p>
               </div>
 
               <div>
@@ -1298,14 +1248,15 @@ function calendarLink({
   slot: string | null;
   typeLabel: string;
 }) {
-  if (!day || !slot) return "#";
+  if (day == null || !slot) return "#";
   const [clock, meridiem] = slot.split(" ");
   const [rawHour, minute] = clock.split(":").map(Number);
   let hour = rawHour % 12;
   if (meridiem === "PM") hour += 12;
   const startMinutes = hour * 60 + minute;
+  const date = isoForOffset(day).replace(/-/g, "");
   const stamp = (totalMinutes: number) =>
-    `202609${String(day).padStart(2, "0")}T${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}${String(totalMinutes % 60).padStart(2, "0")}00`;
+    `${date}T${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}${String(totalMinutes % 60).padStart(2, "0")}00`;
   const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",

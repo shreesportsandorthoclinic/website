@@ -161,7 +161,14 @@ const conditionKeyFor: Record<string, string> = {
   Knee: "knee",
   Shoulder: "shoulder",
   "Back & Spine": "back",
+  Hip: "hip",
+  "Foot & Ankle": "foot",
+  "Wrist & Hand": "wrist",
+  Elbow: "elbow",
   "Sports Injuries": "sports",
+  Arthritis: "arthritis",
+  Fractures: "fracture",
+  "Muscle & Tendon": "tendon",
 };
 
 export const conditionList = [
@@ -629,18 +636,338 @@ export const conditions: Record<string, Condition> = {
       },
     ],
   },
+  hip: {
+    key: "hip",
+    name: "Hip pain",
+    region: "Hip",
+    lede: "Pain in the groin, the side of the hip or the buttock — with walking, climbing stairs, getting out of a low chair, or turning in bed.",
+    image: photos.lounge,
+    what: "Hip pain can come from the joint itself, from the tendons and bursa on the outside of the hip, or be referred from the lower back. Where you feel it is a useful clue: true hip-joint pain is usually felt in the groin and with rotation, while pain over the bony point on the side is more often a tendon problem.",
+    symptoms: [
+      "Groin pain or a deep ache with walking or weight-bearing",
+      "Stiffness after sitting, and first thing in the morning",
+      "Pain putting on socks or shoes, or getting in and out of a car",
+      "Pain lying on that side at night",
+      "A limp, or reduced walking distance",
+    ],
+    causes: [
+      "Hip osteoarthritis",
+      "Gluteal tendinopathy or trochanteric bursitis (outer hip)",
+      "Femoroacetabular impingement and labral problems in younger adults",
+      "Referred pain from the lower back",
+      "Less commonly, reduced blood supply to the femoral head",
+    ],
+    seek: [
+      "Inability to bear weight after a fall",
+      "Sudden severe pain with the leg turned out or shortened",
+      "Fever with a hot, painful hip",
+      "Night pain that is severe, constant and unrelieved by position",
+      "Progressive weakness or numbness in the leg",
+    ],
+    evaluated: [
+      "History and examination including gait and hip rotation",
+      "X-ray, which shows joint-space narrowing and arthritis well",
+      "MRI where a labral tear, tendon problem or early avascular change is suspected",
+      "Assessment of the lower back when referred pain is possible",
+    ],
+    options: [
+      "Activity and load modification, and weight management where relevant",
+      "Physiotherapy focused on the gluteal and core muscles",
+      "Image-guided injection in selected cases, for pain or to confirm the source",
+      "Hip arthroscopy for selected impingement and labral problems",
+      "Robotic-assisted total hip replacement for advanced arthritis",
+    ],
+    recovery:
+      "Outer-hip tendon pain usually settles over months with the right loading programme. Arthritis is managed for as long as it is tolerable and replacement is considered when pain and function no longer respond — recovery from a hip replacement is measured in weeks to a few months, with a specific plan given afterwards.",
+    faqs: [
+      {
+        q: "Is hip pain always arthritis?",
+        a: "No. In people under 50 it is more often a tendon, the labrum or the back. Examination and an X-ray usually sort this out.",
+      },
+      {
+        q: "Will I need a replacement?",
+        a: "Only a minority of hip pain leads to that. It is considered when arthritis is advanced and other measures no longer control the pain.",
+      },
+    ],
+  },
+  wrist: {
+    key: "wrist",
+    name: "Wrist & hand pain",
+    region: "Wrist & Hand",
+    lede: "Pain, tingling, weakness or stiffness in the wrist, thumb or fingers — with gripping, typing, lifting, or on waking at night.",
+    image: photos.waiting2,
+    what: "The wrist and hand pack many small joints, tendons and nerves into a small space, so problems here are common and usually specific. The pattern matters: night tingling in the thumb and first fingers points to a nerve; pain at the base of the thumb with pinch points to a joint; pain on the thumb side of the wrist with lifting points to a tendon.",
+    symptoms: [
+      "Tingling or numbness in the thumb, index and middle fingers, worse at night",
+      "Pain at the base of the thumb with pinching or opening jars",
+      "Pain on the thumb side of the wrist when lifting",
+      "A finger that catches or locks when bending",
+      "Weak grip, or dropping things",
+    ],
+    causes: [
+      "Carpal tunnel syndrome (median nerve compression)",
+      "Thumb-base (CMC) osteoarthritis",
+      "De Quervain's tenosynovitis",
+      "Trigger finger",
+      "Ganglion cysts, and old or missed fractures",
+    ],
+    seek: [
+      "Numbness that is now constant rather than intermittent",
+      "Visible wasting of the muscle at the base of the thumb",
+      "Significant hand weakness affecting daily tasks",
+      "Injury with deformity, or inability to move a finger",
+      "A hot, swollen, red joint with fever",
+    ],
+    evaluated: [
+      "History and examination, including specific nerve and tendon tests",
+      "X-ray where a joint or old fracture is suspected",
+      "Nerve conduction studies to confirm and grade carpal tunnel syndrome",
+      "Ultrasound for tendon and cyst problems where needed",
+    ],
+    options: [
+      "Activity modification and workstation changes",
+      "Night splinting, particularly for carpal tunnel and thumb-base arthritis",
+      "Corticosteroid injection for nerve, tendon and joint problems in selected cases",
+      "Hand therapy and grip programmes",
+      "Day-case surgery — carpal tunnel release, trigger finger release, De Quervain's release — where symptoms persist",
+    ],
+    recovery:
+      "Many of these problems settle with a splint, an injection or a change in activity. Where surgery is needed it is usually a short day-case procedure; a carpal tunnel release, for example, relieves night symptoms quickly, with grip strength returning over some weeks.",
+    faqs: [
+      {
+        q: "Is the tingling from my neck or my wrist?",
+        a: "Either is possible and they can coexist. Where the numbness is, whether it is worse at night, and nerve tests usually tell them apart.",
+      },
+      {
+        q: "Can carpal tunnel get better without surgery?",
+        a: "Mild cases often improve with a night splint and activity changes. Surgery is considered when symptoms are constant, sleep is disturbed, or there is weakness.",
+      },
+    ],
+  },
+  elbow: {
+    key: "elbow",
+    name: "Elbow pain",
+    region: "Elbow",
+    lede: "Pain on the outside or inside of the elbow with gripping and lifting, or aching and locking after a fall or years of load.",
+    image: photos.consultRoom,
+    what: "Most elbow pain is tendon-related — tennis elbow on the outside, golfer's elbow on the inside — and is a load problem rather than a sign of damage. Less often the pain comes from the joint itself or from the ulnar nerve as it passes behind the elbow.",
+    symptoms: [
+      "Pain on the bony point outside the elbow when gripping, lifting or shaking hands",
+      "Pain on the inner side with wrist flexion and gripping",
+      "Tingling in the ring and little fingers, worse with the elbow bent",
+      "Aching after computer work or repetitive lifting",
+      "Loss of full straightening or bending, or a catching sensation",
+    ],
+    causes: [
+      "Lateral epicondylitis (tennis elbow)",
+      "Medial epicondylitis (golfer's elbow)",
+      "Cubital tunnel syndrome (ulnar nerve)",
+      "Repetitive load from work, sport or tools",
+      "Post-traumatic stiffness or early joint change",
+    ],
+    seek: [
+      "Inability to straighten or bend the elbow after an injury",
+      "Deformity or marked swelling following a fall",
+      "Constant, worsening numbness or weakness in the hand",
+      "A hot, swollen joint with fever",
+      "Night pain that is severe and unrelieved",
+    ],
+    evaluated: [
+      "History and examination localising the pain and testing the ulnar nerve",
+      "X-ray where a joint problem, loose body or old injury is suspected",
+      "Ultrasound or MRI for tendon or joint assessment when needed",
+      "Nerve conduction studies where nerve involvement is suspected",
+    ],
+    options: [
+      "Load management, technique review and a specific strengthening programme",
+      "A counterforce brace or splint in selected cases",
+      "Injection used sparingly, as it is not a long-term fix for tendon pain",
+      "Hand therapy and graded return to work or sport",
+      "Surgery for persistent tendon pain, nerve release, or removal of loose bodies where indicated",
+    ],
+    recovery:
+      "Tennis and golfer's elbow are slow to settle — often several months — but the trajectory is usually good with a progressive loading programme and patience. Nerve and joint problems are assessed and managed on their own timelines.",
+    faqs: [
+      {
+        q: "Why is tennis elbow taking so long?",
+        a: "Tendon pain responds to gradual, progressive load rather than rest, and that takes months. Repeated injections can slow recovery, which is why they are used carefully.",
+      },
+      {
+        q: "Do I need a scan?",
+        a: "Usually not for typical tennis or golfer's elbow. Imaging is used when the pain is atypical, the joint is involved, or a nerve is affected.",
+      },
+    ],
+  },
+  arthritis: {
+    key: "arthritis",
+    name: "Arthritis",
+    region: "Arthritis",
+    lede: "Joint pain and stiffness that is worse after rest and with use — most often in the knee, hip, hand or shoulder.",
+    image: photos.imaging2,
+    what: "Osteoarthritis is wear and change in the cartilage and bone of a joint. It is very common with age, it does not always progress, and the amount seen on an X-ray often does not match how much a joint hurts. The aim of treatment is to keep the joint working and comfortable for as long as possible, and to offer replacement only when that is no longer achievable.",
+    symptoms: [
+      "Stiffness first thing in the morning that eases within half an hour",
+      "Pain that builds with use through the day",
+      "A grinding or crackling sensation in the joint",
+      "Swelling or a feeling of the joint being enlarged",
+      "Gradual loss of range and, in the knee or hip, a limp",
+    ],
+    causes: [
+      "Age-related cartilage and joint change",
+      "Previous joint injury or fracture",
+      "Family history",
+      "Higher body weight, particularly for knee and hip arthritis",
+      "Occasionally inflammatory arthritis, which is a different condition and managed differently",
+    ],
+    seek: [
+      "A single joint that is hot, red and swollen with fever",
+      "Several joints becoming painful and swollen over a short period",
+      "Marked early-morning stiffness lasting well over an hour",
+      "Rapid loss of function, or the joint giving way",
+      "Unexplained weight loss or feeling generally unwell with the joint pain",
+    ],
+    evaluated: [
+      "History and examination of the affected joints",
+      "Weight-bearing X-rays, which show joint-space narrowing and alignment",
+      "Blood tests where an inflammatory or other cause is possible",
+      "A discussion of how the pain affects your walking, work and sleep",
+    ],
+    options: [
+      "Exercise and strengthening — the best-evidenced treatment for osteoarthritis",
+      "Weight management where relevant, which meaningfully reduces knee and hip load",
+      "Pain relief as advised, and activity pacing",
+      "Joint injection in selected cases for a flare",
+      "Robotic-assisted joint replacement when pain and function no longer respond to the above",
+    ],
+    recovery:
+      "Arthritis is managed rather than cured. Many people stay comfortable for years with exercise, weight and activity changes. When a joint replacement is the right step, it is a planned procedure with a structured recovery over weeks to a few months and a good long-term outlook.",
+    faqs: [
+      {
+        q: "Will exercise wear the joint out faster?",
+        a: "No. Appropriate exercise reduces pain and improves function in osteoarthritis. Inactivity tends to make joints stiffer and weaker.",
+      },
+      {
+        q: "Does a bad X-ray mean I need surgery?",
+        a: "Not on its own. Surgery is decided on your symptoms and how much the joint limits your life, not on the X-ray alone.",
+      },
+    ],
+  },
+  fracture: {
+    key: "fracture",
+    name: "Fractures",
+    region: "Fractures",
+    lede: "A broken bone, a suspected break after a fall or injury, or follow-up care and rehabilitation for a fracture treated elsewhere.",
+    image: photos.imagingRoom,
+    what: "A fracture is a break in a bone. Most are diagnosed on an X-ray and heal well when the bone is held in a good position and loaded appropriately as it recovers. Some need only a cast or splint; others need surgery to hold the bone with plates, screws or a nail. The right choice depends on which bone, the pattern of the break, and how much the fragments have moved.",
+    symptoms: [
+      "Immediate pain, swelling and bruising after an injury",
+      "Difficulty or inability to move or use the limb",
+      "Deformity, or the limb looking out of shape",
+      "Tenderness over one specific point on the bone",
+      "Pain on weight-bearing after a fall, even without deformity",
+    ],
+    causes: [
+      "Falls, sports injuries and road traffic collisions",
+      "A direct blow or a twisting force",
+      "Reduced bone density (osteoporosis), where lower-energy falls cause breaks",
+      "Stress fractures from a rapid increase in running or training",
+      "Occasionally an underlying bone problem",
+    ],
+    seek: [
+      "Obvious deformity, or bone visible through the skin — go to an emergency department",
+      "A pale, cold, numb or blue hand or foot beyond the injury",
+      "Severe, worsening pain and tightness in the limb after a cast is applied",
+      "Inability to bear any weight, or to move the limb at all",
+      "A high-energy injury, or injury with a head, chest or abdominal blow",
+    ],
+    evaluated: [
+      "Examination of the limb, the skin and the circulation and nerves beyond the injury",
+      "X-rays in at least two views; CT for complex or joint-involving fractures",
+      "Assessment for other injuries after a significant fall or collision",
+      "A bone-health review where the fracture followed a minor fall",
+    ],
+    options: [
+      "Cast, splint or brace with a planned schedule of X-rays and loading",
+      "Closed reduction — realigning the bone without an incision — where needed",
+      "Surgical fixation with plates, screws or a nail for unstable or displaced fractures",
+      "Rehabilitation to restore movement, strength and function after immobilisation",
+      "Referral for bone-density assessment and treatment where indicated",
+    ],
+    recovery:
+      "Most fractures unite in around six to twelve weeks, longer for some bones and in older adults, followed by a period of rehabilitation to regain movement and strength. You are given a specific timeline, a loading plan and follow-up X-ray dates for your fracture.",
+    faqs: [
+      {
+        q: "Do all fractures need surgery?",
+        a: "No. Many heal well in a cast or splint. Surgery is used when the bone cannot be held in an acceptable position otherwise, or when it allows a safer, faster return to function.",
+      },
+      {
+        q: "Can you take over care of a fracture treated elsewhere?",
+        a: "Yes — bring your X-rays and any operation notes, and the clinic can continue follow-up and rehabilitation.",
+      },
+    ],
+  },
+  tendon: {
+    key: "tendon",
+    name: "Muscle & tendon injuries",
+    region: "Muscle & Tendon",
+    lede: "A pulled muscle, a painful tendon that will not settle, or a suspected tendon tear — in the calf, thigh, shoulder, Achilles or elsewhere.",
+    image: photos.consultDesk,
+    what: "Muscle and tendon problems fall into two broad groups. A sudden strain or tear happens during a specific effort — a sprint, a jump, a lift — and is graded by how much tissue is involved. A tendinopathy builds gradually, is a response to load the tendon was not ready for, and needs progressive loading rather than rest to recover.",
+    symptoms: [
+      "A sudden sharp pain, sometimes with a snap or pop, during activity",
+      "Bruising and swelling within a day of a muscle tear",
+      "Localised tendon pain that is worst at the start of activity and eases as you warm up",
+      "Morning stiffness in the affected tendon",
+      "Weakness, or a gap you can feel in a muscle or tendon",
+    ],
+    causes: [
+      "A rapid increase in training volume or intensity",
+      "Sprinting, jumping and change-of-direction sports",
+      "Returning to sport before a previous injury was fully rehabilitated",
+      "Age-related tendon change, particularly in the Achilles and rotator cuff",
+      "Occasionally, certain medications that affect tendon strength",
+    ],
+    seek: [
+      "Sudden severe pain at the back of the ankle with difficulty pushing off — a possible Achilles rupture",
+      "Inability to use the muscle or bear weight after the injury",
+      "A visible gap, marked deformity or a muscle that has balled up",
+      "Rapidly spreading swelling, or a hot, red, painful limb with fever",
+      "Numbness, pins and needles or a cold limb beyond the injury",
+    ],
+    evaluated: [
+      "History of exactly how the injury happened, and examination grading the injury",
+      "Ultrasound, which shows muscle and tendon tears well and can be done dynamically",
+      "MRI for larger tears, or where surgery is being considered",
+      "A review of training load, footwear and previous injuries",
+    ],
+    options: [
+      "Early management of swelling and pain, then protected movement",
+      "A staged, progressive loading programme with clear criteria to advance",
+      "Physiotherapy and a return-to-sport plan built around your goals",
+      "Surgical repair for complete tendon ruptures where indicated — including Achilles and rotator cuff",
+      "Return-to-play testing before clearance",
+    ],
+    recovery:
+      "A minor muscle strain may settle in two to three weeks; a significant tear or a tendinopathy takes months and recovers on loading, not rest. Complete tendon ruptures that are repaired follow a structured, multi-month rehabilitation. Progression is decided on strength and control, not on time alone.",
+    faqs: [
+      {
+        q: "Should I rest a painful tendon completely?",
+        a: "Usually not. Complete rest tends to make a tendinopathy less tolerant of load. The aim is to reduce the aggravating load while gradually building the tendon's capacity.",
+      },
+      {
+        q: "How do I know if it is torn or just strained?",
+        a: "The mechanism, whether you can use the muscle, and an ultrasound scan usually answer this. Both can be very painful in the first few days.",
+      },
+    ],
+  },
 };
 
 export const conditionDir = Object.values(conditions);
 
-export const alsoTreated = [
-  "Hip",
-  "Wrist & Hand",
-  "Elbow",
-  "Arthritis",
-  "Fractures",
-  "Muscle & Tendon",
-];
+/* Conditions the clinic treats but has no dedicated page for yet. Shown as
+   plain chips under "Also treated" on /conditions; the section hides itself
+   when this is empty. */
+export const alsoTreated: string[] = [];
 
 /* ── treatments ───────────────────────────────────────────────────── */
 

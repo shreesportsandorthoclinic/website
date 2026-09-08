@@ -85,9 +85,6 @@ function LoginForm() {
       >
         {busy ? "Signing in…" : "Sign in"}
       </button>
-      <p style={{ fontSize: 13, color: "var(--color-neutral-700)", margin: 0 }}>
-        Credentials are set in the site&rsquo;s environment variables (STAFF_EMAIL / STAFF_PASSWORD).
-      </p>
       <Link href="/" style={{ fontSize: 14 }}>
         ← Back to the website
       </Link>
@@ -112,21 +109,36 @@ export default function StaffLoginPage() {
           gap: 48,
         }}
       >
-        <div>
-          <p style={{ fontSize: 20, fontWeight: 600, margin: 0, fontFamily: "var(--font-heading)" }}>
-            {clinic.name}
-          </p>
-          <p
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <img
+            src="/images/logo.jpeg"
+            alt=""
             style={{
-              fontSize: 11,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "var(--color-neutral-500)",
-              margin: "6px 0 0",
+              height: 52,
+              width: "auto",
+              display: "block",
+              flex: "none",
+              background: "#ffffff",
+              borderRadius: 12,
+              padding: 6,
             }}
-          >
-            Practice management
-          </p>
+          />
+          <div>
+            <p style={{ fontSize: 20, fontWeight: 600, margin: 0, fontFamily: "var(--font-heading)" }}>
+              {clinic.name}
+            </p>
+            <p
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                color: "var(--color-neutral-500)",
+                margin: "6px 0 0",
+              }}
+            >
+              Practice management
+            </p>
+          </div>
         </div>
         <div>
           <h1

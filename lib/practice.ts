@@ -1,27 +1,28 @@
 import "server-only";
 
 import {
-  CLOSED_DAYS,
-  DAYS_IN_MONTH,
   CLINIC_WINDOW_LABELS,
-  isoFor,
-  slotTimesFor,
-  TODAY_ISO,
-  weekdayOf,
+  CLOSED_DATES,
+  longLabelForOffset,
+  monthGrid,
+  shortDate,
+  slotTimesForDate,
+  todayIso,
 } from "./schedule";
 import { compareTimes, listAppointments } from "./store";
 import { occupiesSlot, type Appointment, type Status } from "./types";
 
 export { statusInk } from "./status";
 
-export { TODAY_ISO as TODAY };
-export const TODAY_LABEL = "Wednesday, 2 September 2026";
+const TODAY = todayIso();
+export { TODAY };
+export const TODAY_LABEL = longLabelForOffset(0);
 
 /** Everything the dashboard needs, from one pass over the store. */
 export async function dashboard() {
   const all = await listAppointments();
-  const today = all.filter((a) => a.date === TODAY_ISO);
-  const upcoming = all.filter((a) => a.date > TODAY_ISO);
+  const today = all.filter((a) => a.date === TODAY);
+  const upcoming = all.filter((a) => a.date > TODAY);
 
   return {
     today,
@@ -33,14 +34,13 @@ export async function dashboard() {
       upcoming: upcoming.length,
       pending: all.filter((a) => a.status === "PENDING").length,
       cancelled: all.filter((a) => a.status === "CANCELLED").length,
-      free: await openSlotsOn(TODAY_ISO),
+      free: await openSlotsOn(TODAY),
     },
   };
 }
 
 async function openSlotsOn(iso: string) {
-  const day = Number(iso.slice(-2));
-  const capacity = slotTimesFor(day).length;
+  const capacity = slotTimesForDate(iso).length;
   const all = await listAppointments();
   const booked = all.filter((a) => a.date === iso && occupiesSlot(a.status)).length;
   return Math.max(capacity - booked, 0);
@@ -50,37 +50,41 @@ async function openSlotsOn(iso: string) {
 export async function dayRows() {
   const all = await listAppointments();
   const byTime = new Map(
-    all.filter((a) => a.date === TODAY_ISO && occupiesSlot(a.status)).map((a) => [a.time, a]),
+    all.filter((a) => a.date === TODAY && occupiesSlot(a.status)).map((a) => [a.time, a]),
   );
 
-  return slotTimesFor(Number(TODAY_ISO.slice(-2)))
+  return slotTimesForDate(TODAY)
     .sort(compareTimes)
     .map((time) => ({ time, appointment: byTime.get(time) ?? null }));
 }
 
-const WEEK = [
-  { name: "Mon 31", iso: "2026-08-31", capacity: 12 },
-  { name: "Tue 1", iso: "2026-09-01", capacity: 12 },
-  { name: "Wed 2", iso: "2026-09-02", capacity: 12 },
-  { name: "Thu 3", iso: "2026-09-03", capacity: 12 },
-  { name: "Fri 4", iso: "2026-09-04", capacity: 12 },
-  { name: "Sat 5", iso: "2026-09-05", capacity: 12 },
-  { name: "Sun 6", iso: "2026-09-06", capacity: 16 },
-];
+/** The seven days of the current week (Monday–Sunday) that contains today. */
+function currentWeekIsos() {
+  const [y, m, d] = TODAY.split("-").map(Number);
+  const midday = Date.UTC(y, m - 1, d);
+  const weekday = new Date(midday).getUTCDay(); // 0 = Sunday
+  const mondayOffset = (weekday + 6) % 7;
+  const isos: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    isos.push(new Date(midday + (i - mondayOffset) * 86_400_000).toISOString().slice(0, 10));
+  }
+  return isos;
+}
 
 export async function weekColumns() {
   const all = await listAppointments();
 
-  return WEEK.map((column) => {
-    const booked = all.filter(
-      (a) => a.date === column.iso && occupiesSlot(a.status),
-    ).length;
+  return currentWeekIsos().map((iso) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    const capacity = slotTimesForDate(iso).length;
+    const booked = all.filter((a) => a.date === iso && occupiesSlot(a.status)).length;
     return {
-      name: column.name,
-      capacity: column.capacity,
+      name: `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday]} ${d}`,
+      capacity,
       booked,
-      open: Math.max(column.capacity - booked, 0),
-      today: column.iso === TODAY_ISO,
+      open: Math.max(capacity - booked, 0),
+      today: iso === TODAY,
     };
   });
 }
@@ -91,16 +95,19 @@ export type MonthCell =
 
 export async function monthCells(): Promise<MonthCell[]> {
   const all = await listAppointments();
-  const cells: MonthCell[] = [{ blank: true }];
+  const grid = monthGrid();
+  const cells: MonthCell[] = [];
 
-  for (let day = 1; day <= DAYS_IN_MONTH; day++) {
-    const iso = isoFor(day);
+  for (let i = 0; i < grid.leadingBlanks; i++) cells.push({ blank: true });
+
+  for (let day = 1; day <= grid.daysInMonth; day++) {
+    const iso = grid.isoForDay(day);
     cells.push({
       blank: false,
       day,
       count: all.filter((a) => a.date === iso && occupiesSlot(a.status)).length,
-      closed: CLOSED_DAYS.includes(day),
-      today: iso === TODAY_ISO,
+      closed: CLOSED_DATES.has(iso),
+      today: iso === TODAY,
     });
   }
 
@@ -119,48 +126,29 @@ export const availabilityRows = ["Monday", "Tuesday", "Wednesday", "Thursday", "
   }),
 );
 
-export const currentBlocks = [
-  { date: "8 September", detail: "Full day · Surgery list" },
-  { date: "15 September", detail: "Full day · Leave" },
-  { date: "23 September", detail: "Evening only · Conference" },
-];
+export const currentBlocks: Array<{ date: string; detail: string }> = [...CLOSED_DATES].map((iso) => ({
+  date: shortDate(iso),
+  detail: "Full day · Closed",
+}));
 
 export const notifications = [
   {
     when: "Immediately after booking",
-    channels: "Email · SMS · WhatsApp",
+    channels: "Telegram (clinic)",
+    title: "New appointment request",
+    body: "R. Prakash · New consultation · Tue 9 Sep at 11:00 AM · 📞 90000 00001. Open in staff area to confirm.",
+  },
+  {
+    when: "On confirm / decline / reschedule",
+    channels: "Email (patient)",
     title: "Appointment confirmed",
-    body: "Your appointment with Dr. Neel is confirmed for Wednesday 9 September at 11:00 AM, Shree Sports & Ortho Clinic, Electronic City Phase-1. Bring any previous reports and imaging. Ref SSO-260909-4417.",
+    body: "Your appointment with Dr. Neel is confirmed for Tuesday 9 September at 11:00 AM, Shree Sports & Ortho Clinic, Electronic City Phase-1. Bring any previous reports and imaging. Ref SSO-260909-4417.",
   },
   {
-    when: "24 hours before",
-    channels: "SMS · WhatsApp",
-    title: "Reminder — tomorrow",
-    body: "Reminder: your appointment with Dr. Neel is tomorrow at 11:00 AM. Reply to this message or call the clinic if you need to change it.",
-  },
-  {
-    when: "2 hours before",
-    channels: "SMS · WhatsApp",
-    title: "Reminder — today",
-    body: "Your appointment is at 11:00 AM today. The clinic is at Neeladri Layout, Doddathoguru, Electronic City Phase-1.",
-  },
-  {
-    when: "On cancellation",
-    channels: "Email · SMS",
-    title: "Appointment cancelled",
-    body: "Your 9 September 11:00 AM appointment has been cancelled and the slot released. You can book again at any time.",
-  },
-  {
-    when: "On reschedule",
-    channels: "Email · SMS · WhatsApp",
-    title: "Appointment moved",
-    body: "Your appointment has been moved to Friday 11 September at 6:00 PM with Dr. Neel. The earlier slot has been released.",
-  },
-  {
-    when: "24 hours after the visit",
-    channels: "WhatsApp",
-    title: "After your appointment",
-    body: "Thank you for visiting. If anything in your plan is unclear, or symptoms change, contact the clinic. A follow-up can be booked from the website.",
+    when: "Booking verification",
+    channels: "Email (patient)",
+    title: "Your booking code",
+    body: "Your verification code is 481920. Enter it on the booking page to confirm your appointment request. It expires in 10 minutes.",
   },
 ];
 
@@ -176,4 +164,3 @@ export const plannedFeatures = [
 ];
 
 export type { Appointment, Status };
-export { weekdayOf };

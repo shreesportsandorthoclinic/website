@@ -1,6 +1,6 @@
 import Link from "next/link";
+import GoogleReviews from "@/components/GoogleReviews";
 import Photo from "@/components/Photo";
-import ReviewCard from "@/components/ReviewCard";
 import {
   approach,
   clinic,
@@ -8,14 +8,12 @@ import {
   conditionList,
   getDoctorFactsHome,
   photos,
-  profiles,
   sportsList,
   treatmentHomeKeys,
   treatments,
   workTopics,
 } from "@/lib/content";
 import { listArticles } from "@/lib/library";
-import { getGoogleReviews } from "@/lib/reviews";
 
 const check = (
   <svg
@@ -45,10 +43,6 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const latestArticles = (await listArticles()).slice(0, 3);
-  const reviewData = await getGoogleReviews();
-  /* Only the strongest, most recent few fit the home page; /reviews shows all
-     five Google returns. */
-  const homeReviews = reviewData.configured ? reviewData.reviews.slice(0, 3) : [];
   const doctorFactsHome = getDoctorFactsHome();
 
   return (
@@ -700,101 +694,37 @@ export default async function HomePage() {
 
       {/* reviews */}
       <section className="pad" style={{ padding: "60px 48px" }}>
-        <div
-          className="two"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "0.8fr 1.2fr",
-            gap: 56,
-            maxWidth: 1400,
-            alignItems: "start",
-          }}
-        >
-          <div>
-            <p className="eyebrow">Reviews</p>
-            <h2
-              style={{ fontSize: "clamp(30px,3.6vw,44px)", letterSpacing: "-0.025em", margin: "0 0 18px" }}
-            >
-              What patients say
-            </h2>
-            <p
-              style={{
-                fontSize: 15,
-                color: "var(--color-neutral-700)",
-                maxWidth: "32ch",
-                margin: "0 0 22px",
-              }}
-            >
-              Written by members of the public on Google, and shown here as posted. Nothing here is
-              written, edited or selected by the clinic.
-            </p>
-            {reviewData.configured && reviewData.rating !== null && (
-              <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 24 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-heading)",
-                    fontSize: 44,
-                    fontWeight: 600,
-                    letterSpacing: "-0.03em",
-                    color: "var(--color-accent-700)",
-                  }}
-                >
-                  {reviewData.rating.toFixed(1)}
-                </span>
-                <span style={{ fontSize: 14, color: "var(--color-neutral-700)" }}>
-                  average on Google
-                  {reviewData.total ? (
-                    <>
-                      <br />
-                      from {reviewData.total} review{reviewData.total === 1 ? "" : "s"}
-                    </>
-                  ) : null}
-                </span>
-              </div>
-            )}
-            <Link className="btn btn-secondary" href="/reviews" style={{ fontSize: 12, padding: "14px 26px" }}>
-              View all reviews
-            </Link>
-          </div>
-          <div
+        <div style={{ maxWidth: 1400 }}>
+          <p className="eyebrow">Reviews</p>
+          <h2
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
-              gap: 20,
+              fontSize: "clamp(30px,3.6vw,44px)",
+              letterSpacing: "-0.025em",
+              margin: "0 0 14px",
             }}
           >
-            {homeReviews.length > 0 ? (
-              homeReviews.map((review) => (
-                <ReviewCard key={review.id} review={review} clamp={5} />
-              ))
-            ) : (
-              <div
-                style={{
-                  border: "1px solid var(--color-divider)",
-                  padding: 24,
-                  borderRadius: 20,
-                  minHeight: 170,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  gap: 14,
-                  gridColumn: "1 / -1",
-                }}
-              >
-                <p style={{ margin: 0, fontSize: 16, color: "var(--color-neutral-800)" }}>
-                  Reviews are read straight from Google.
-                </p>
-                <a
-                  className="btn btn-secondary"
-                  href={profiles.googleMaps}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontSize: 12, padding: "13px 22px", alignSelf: "flex-start" }}
-                >
-                  Read them on Google
-                </a>
-              </div>
-            )}
+            What patients say
+          </h2>
+          <p
+            style={{
+              fontSize: 15,
+              color: "var(--color-neutral-700)",
+              maxWidth: "52ch",
+              margin: "0 0 28px",
+            }}
+          >
+            Written by members of the public on Google and shown here straight from the clinic&rsquo;s
+            Google Business profile. Nothing here is written, edited or selected by the clinic.
+          </p>
+          <GoogleReviews />
+          <div style={{ marginTop: 24 }}>
+            <Link
+              className="btn btn-secondary"
+              href="/reviews"
+              style={{ fontSize: 12, padding: "14px 26px" }}
+            >
+              More reviews
+            </Link>
           </div>
         </div>
       </section>

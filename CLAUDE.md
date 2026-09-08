@@ -77,7 +77,6 @@ production. Only `STAFF_*` are required for the app to work.
 | `SITE_URL` | no | The site's own public URL, for links inside notifications. Defaults to nothing (links are omitted). |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | no | New-booking alerts to the clinic on Telegram. `TELEGRAM_CHAT_ID` may be comma-separated. `npm run telegram:chat-id` helps find the id after the doctor messages the bot. Without these the alert is logged and skipped — a booking never fails over it. |
 | `RESEND_API_KEY`, `NOTIFY_FROM_EMAIL` | no | Real email delivery for booking OTPs. Without them the code is shown on screen and logged to the console — fine for dev, **no protection in production**. |
-| `GOOGLE_PLACES_API_KEY`, `GOOGLE_PLACE_ID` | no | Live Google reviews. Without them the site shows "read our reviews on Google" links instead. |
 
 ## Booking flow (`/book`)
 
@@ -91,9 +90,12 @@ the grid reflects what is actually booked.
   The slot grid, `clinic.hours` in `lib/content.ts` (header, home, contact,
   condition pages) and the `/staff/availability` table all derive from it.
   Never hardcode a time string anywhere else.
-- The calendar is **hardcoded to September 2026** (`MONTH_LABEL`, `TODAY_DAY`,
-  `CLOSED_DAYS`). This is prototype scaffolding — it needs replacing with real
-  dates driven by the staff availability screen before launch.
+- The booking calendar is a **rolling window**: `MIN_ADVANCE_DAYS` (1, i.e.
+  tomorrow) to `MAX_ADVANCE_DAYS` (10) from today, computed in IST. The form
+  and `/api/booking` pass a **day offset** (1–10), never a calendar date, and
+  `isoForOffset()` turns it into an ISO date. `CLOSED_DATES` (a `Set` of ISO
+  strings, currently empty) is where staff leave/holidays go. `monthGrid()` in
+  the same file is the real-current-month helper the staff calendar view uses.
 - **Email and phone are both mandatory**, and the email must be verified by
   one-time code before a booking is accepted. `lib/otp.ts` issues an
   HMAC-signed token bound to that exact email+phone; `/api/booking` rejects
@@ -119,17 +121,16 @@ those helpers.
 
 - **Reviews are never authored by the clinic.** India's NMC conduct
   regulations restrict doctors from soliciting testimonials, so `/reviews` and
-  the home page show only an unedited, attributed pull from Google's Places
-  API. Never add invented reviewer names, quotes, star ratings or superlatives
-  ("best", "No. 1"). If the API is unconfigured or failing, fall back to
-  linking out — not to placeholder quotes.
-- Google's Places API returns **at most 5 reviews**; that is a hard limit with
-  no paid tier around it. `/reviews` shows every one it gets, in full, and says
-  so when the profile has more. Cached for an hour (`revalidate: 3600`).
-- **The Contact page map loads with the page.** Google's embed may set cookies,
-  so `/cookies` discloses it as the site's one third-party embed and the map
-  carries a label saying so. If you ever put it back behind a click, update
-  that policy page in the same change.
+  the home page show only an unedited pull straight from the Google Business
+  profile — via an Elfsight "Google Reviews" widget (`components/GoogleReviews.tsx`,
+  loaded from `elfsightcdn.com`). Never add invented reviewer names, quotes,
+  star ratings or superlatives ("best", "No. 1"), and never hand-key review
+  text into the repo. The widget renders its own stars — don't add a separate
+  rating number next to it.
+- **Two third-party embeds load with the page:** the Google map on `/contact`
+  and the Elfsight reviews widget on `/` and `/reviews`. Both may set cookies;
+  `/cookies` discloses both. If you add, remove or gate one, update that page
+  in the same change.
 
 ## Conventions
 

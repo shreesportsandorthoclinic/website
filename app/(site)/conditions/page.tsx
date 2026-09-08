@@ -105,42 +105,44 @@ export default function ConditionsPage() {
         ))}
       </div>
 
-      <div
-        style={{
-          marginTop: 56,
-          paddingTop: 28,
-          borderTop: "1px solid var(--color-divider)",
-          maxWidth: 1400,
-        }}
-      >
-        <p
+      {alsoTreated.length > 0 && (
+        <div
           style={{
-            fontSize: 11,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "var(--color-neutral-700)",
-            margin: "0 0 16px",
+            marginTop: 56,
+            paddingTop: 28,
+            borderTop: "1px solid var(--color-divider)",
+            maxWidth: 1400,
           }}
         >
-          Also treated — pages to be confirmed with the clinic
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-          {alsoTreated.map((name) => (
-            <span
-              key={name}
-              className="tag tag-outline"
-              style={{
-                fontSize: 13,
-                padding: "6px 12px",
-                borderColor: "var(--color-accent-2-400)",
-                color: "var(--color-accent-2-700)",
-              }}
-            >
-              {name}
-            </span>
-          ))}
+          <p
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--color-neutral-700)",
+              margin: "0 0 16px",
+            }}
+          >
+            Also treated
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {alsoTreated.map((name) => (
+              <span
+                key={name}
+                className="tag tag-outline"
+                style={{
+                  fontSize: 13,
+                  padding: "6px 12px",
+                  borderColor: "var(--color-accent-2-400)",
+                  color: "var(--color-accent-2-700)",
+                }}
+              >
+                {name}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }

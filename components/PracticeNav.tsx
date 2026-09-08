@@ -37,17 +37,35 @@ export default function PracticeNav() {
         flexWrap: "wrap",
       }}
     >
-      <span
+      <Link
+        href="/staff"
         style={{
-          fontFamily: "var(--font-heading)",
-          fontWeight: 600,
-          fontSize: 17,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
           marginRight: "auto",
+          textDecoration: "none",
+          color: "inherit",
         }}
       >
-        {clinic.shortName}{" "}
-        <span style={{ color: "var(--color-neutral-500)", fontWeight: 400 }}>· Practice</span>
-      </span>
+        <img
+          src="/images/logo.jpeg"
+          alt=""
+          style={{
+            height: 34,
+            width: "auto",
+            display: "block",
+            flex: "none",
+            background: "#ffffff",
+            borderRadius: 8,
+            padding: 4,
+          }}
+        />
+        <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 17 }}>
+          {clinic.shortName}{" "}
+          <span style={{ color: "var(--color-neutral-500)", fontWeight: 400 }}>· Practice</span>
+        </span>
+      </Link>
 
       {items.map((item) => {
         const active = pathname === item.href;

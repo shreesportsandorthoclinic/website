@@ -18,14 +18,21 @@ export default function CookiePolicyPage() {
           heading: "Current state: no tracking cookies",
           paragraphs: [
             "As published, this site sets no analytics or advertising cookies, and does no tracking of its own. Fonts are self-hosted at build time rather than fetched from Google's servers at runtime, so no font-related request or cookie is sent to a third party either.",
-            "The one third-party embed is the Google map on the Contact page, described below. Apart from that, nothing on this site profiles you, follows you between sites, or is shared with an advertiser — so a plain notice is shown rather than a consent banner, linking here.",
+            "There are two third-party embeds, both described below: the Google map on the Contact page, and the Google reviews shown on the home page and the Reviews page. Apart from those, nothing on this site profiles you, follows you between sites, or is shared with an advertiser — so a plain notice is shown rather than a consent banner, linking here.",
           ],
         },
         {
           heading: "The map on the Contact page",
           paragraphs: [
-            "The Contact page shows an interactive Google map so you can find the clinic without an extra step. It is embedded from Google, and it loads with the page. Google may therefore set cookies on your device and will receive your IP address, as described in Google's own privacy policy. This is the only third-party embed on the site, and it is labelled as such directly beneath the map.",
+            "The Contact page shows an interactive Google map so you can find the clinic without an extra step. It is embedded from Google and loads with the page, so Google may set cookies on your device and will receive your IP address, as described in Google's own privacy policy. It is labelled as a Google embed directly beneath the map.",
             "The map is not used to track you or to build a profile, and the clinic receives nothing from it. If you would rather not load it, the same page offers a plain link that opens the clinic's listing in the Google Maps website or app instead, and browser settings or extensions that block third-party frames will stop it loading without affecting the rest of the page.",
+          ],
+        },
+        {
+          heading: "The Google reviews",
+          paragraphs: [
+            "The home page and the Reviews page show the clinic's Google reviews through a widget provided by Elfsight, which loads from elfsightcdn.com and reads the reviews from the clinic's public Google Business profile. It loads with the page and may set cookies from Elfsight and Google, and those services will receive your IP address, as described in their own privacy policies.",
+            "The reviews are shown exactly as their authors posted them on Google. The clinic does not write, edit, select or pay for them. If you would rather not load the widget, the same pages link out to the clinic's Google, Practo and JustDial listings, and a frame-blocking browser setting or extension stops it loading without affecting the rest of the page.",
           ],
         },
         {

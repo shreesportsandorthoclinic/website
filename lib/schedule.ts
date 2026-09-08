@@ -1,20 +1,15 @@
-/* Pure scheduling rules: which dates the clinic opens, which slot times exist
-   on a given day, and how dates are written. Whether a slot is actually free
-   is a question for the store — see lib/availability.ts. */
+/* Pure scheduling rules: which dates a patient may book, which slot times
+   exist on a day, and how dates are written. Whether a slot is actually free
+   is a question for the store — see lib/availability.ts.
 
-export const MONTH_LABEL = "September 2026";
-export const YEAR = 2026;
-export const MONTH = 9;
-export const DAYS_IN_MONTH = 30;
+   Dates are real. "Today" is computed in the clinic's timezone (IST, no DST),
+   not the server's, so a booking window that opens at 00:00 does so at
+   midnight in Bengaluru. */
 
-/** The prototype treats 2 September 2026 as today. */
-export const TODAY_DAY = 2;
-export const TODAY_ISO = "2026-09-02";
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
-/** Full-day closures. Mirrors the leave shown on /staff/availability. */
-export const CLOSED_DAYS = [8, 15, 23];
-
-export const WEEKDAY_NAMES = [
+const WD_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WD_LONG = [
   "Sunday",
   "Monday",
   "Tuesday",
@@ -23,30 +18,117 @@ export const WEEKDAY_NAMES = [
   "Friday",
   "Saturday",
 ];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
-/** September 2026 opens on a Tuesday, so day 1 is weekday index 2. */
-export function weekdayOf(day: number) {
-  return (day + 1) % 7;
+function clinicTodayParts() {
+  const ist = new Date(Date.now() + IST_OFFSET_MS);
+  return { y: ist.getUTCFullYear(), m: ist.getUTCMonth(), d: ist.getUTCDate() };
 }
 
-export function isoFor(day: number) {
-  return `${YEAR}-${String(MONTH).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+function isoOf(y: number, mZeroBased: number, d: number) {
+  const dt = new Date(Date.UTC(y, mZeroBased, d));
+  return dt.toISOString().slice(0, 10);
 }
 
-export function dayOf(iso: string) {
-  return Number(iso.slice(-2));
+function partsOf(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return { y, m, d, weekday };
 }
 
-export function dateLabel(day: number) {
-  return `${WEEKDAY_NAMES[weekdayOf(day)]} ${day} September 2026`;
+/** Today's date in the clinic's timezone, as an ISO string. */
+export function todayIso() {
+  const { y, m, d } = clinicTodayParts();
+  return isoOf(y, m, d);
 }
 
-/** Short form used on the practice screens, e.g. "2 Sep 2026". */
+/** ISO date `offset` days from today (offset 0 = today). */
+export function isoForOffset(offset: number) {
+  const { y, m, d } = clinicTodayParts();
+  return isoOf(y, m, d + offset);
+}
+
+/** "Tue 9 Sep" */
+export function labelForOffset(offset: number) {
+  const { d, m, weekday } = partsOf(isoForOffset(offset));
+  return `${WD_SHORT[weekday]} ${d} ${MONTHS[m - 1].slice(0, 3)}`;
+}
+
+/** "Tuesday 9 September 2026" */
+export function longLabelForOffset(offset: number) {
+  const { y, d, m, weekday } = partsOf(isoForOffset(offset));
+  return `${WD_LONG[weekday]} ${d} ${MONTHS[m - 1]} ${y}`;
+}
+
+/** Short form used on the practice screens, e.g. "9 Sep 2026". */
 export function shortDate(iso: string) {
-  return `${dayOf(iso)} Sep 2026`;
+  const { y, d, m } = partsOf(iso);
+  return `${d} ${MONTHS[m - 1].slice(0, 3)} ${y}`;
 }
 
-/** Appointments are booked in 15-minute slots. */
+/* ─────────────────────────────────────────────────────────────────────────
+   Booking window.
+
+   A patient can book from MIN_ADVANCE_DAYS to MAX_ADVANCE_DAYS ahead — no
+   same-day bookings, nothing further out than ten days. The booking form
+   and /api/booking both pass a day as this offset from today, never a
+   calendar date, so the window slides forward on its own every night.
+   ───────────────────────────────────────────────────────────────────────── */
+export const MIN_ADVANCE_DAYS = 1;
+export const MAX_ADVANCE_DAYS = 10;
+
+/* Ad-hoc full-day closures (public holidays, leave), as ISO date strings.
+   This is where the staff availability screen would write once it is real.
+   Empty means the clinic is open every day in the window. */
+export const CLOSED_DATES: ReadonlySet<string> = new Set<string>([]);
+
+export type BookingDay = {
+  /** Offset from today; what the form and the API pass around. */
+  offset: number;
+  iso: string;
+  /** "Tue 9 Sep" */
+  label: string;
+  closed: boolean;
+};
+
+export function bookingWindow(): BookingDay[] {
+  const days: BookingDay[] = [];
+  for (let offset = MIN_ADVANCE_DAYS; offset <= MAX_ADVANCE_DAYS; offset++) {
+    const iso = isoForOffset(offset);
+    days.push({ offset, iso, label: labelForOffset(offset), closed: CLOSED_DATES.has(iso) });
+  }
+  return days;
+}
+
+export function isBookable(offset: number) {
+  if (!Number.isInteger(offset) || offset < MIN_ADVANCE_DAYS || offset > MAX_ADVANCE_DAYS) {
+    return false;
+  }
+  return !CLOSED_DATES.has(isoForOffset(offset));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Clinic opening hours — the single source of truth.
+
+   Same windows every day of the week. Everything else derives from here:
+   the bookable slot grid below, the labels on `clinic.hours` in
+   lib/content.ts (header, home page, contact, condition pages) and the
+   weekly table on /staff/availability. Change the windows here and every
+   one of those follows. Do not hardcode a time string anywhere else.
+   ───────────────────────────────────────────────────────────────────────── */
 export const SLOT_MINUTES = 15;
 
 function timeLabel(minutesFromMidnight: number) {
@@ -58,8 +140,6 @@ function timeLabel(minutesFromMidnight: number) {
   return `${hour}:${String(minute).padStart(2, "0")} ${meridiem}`;
 }
 
-/** Build slot labels for one or more [startMinutes, endMinutes] windows,
-    stepping by SLOT_MINUTES and including the end time. */
 function buildSlots(windows: Array<[number, number]>): string[] {
   const out: string[] = [];
   for (const [start, end] of windows) {
@@ -70,21 +150,11 @@ function buildSlots(windows: Array<[number, number]>): string[] {
 
 const H = (h: number, m = 0) => h * 60 + m;
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Clinic opening hours — the single source of truth.
-
-   Same windows every day of the week. Everything else derives from here:
-   the bookable slot grid below, the labels on `clinic.hours` in
-   lib/content.ts (header, home page, contact, condition pages) and the
-   weekly table on /staff/availability. Change the windows here and every
-   one of those follows. Do not hardcode a time string anywhere else.
-   ───────────────────────────────────────────────────────────────────────── */
 export const CLINIC_WINDOWS: Array<[number, number]> = [
   [H(8), H(14)],
   [H(19), H(21)],
 ];
 
-/** "08:00", "14:00" — the 24-hour form used in all patient-facing copy. */
 function clockLabel(minutesFromMidnight: number) {
   const hour = Math.floor(minutesFromMidnight / 60);
   const minute = minutesFromMidnight % 60;
@@ -105,35 +175,30 @@ export const CLINIC_WINDOW_LABELS = CLINIC_WINDOWS.map(
 
 const DAILY_SLOTS = buildSlots(CLINIC_WINDOWS);
 
-/** The clinic keeps the same hours every day; only leave days differ. */
-export function slotTimesFor(day: number): string[] {
-  if (CLOSED_DAYS.includes(day)) return [];
+/** Slot times the clinic offers on a given date; empty on a closed day. */
+export function slotTimesForDate(iso: string): string[] {
+  if (CLOSED_DATES.has(iso)) return [];
   return [...DAILY_SLOTS];
 }
 
-export function isBookable(day: number) {
-  return day >= TODAY_DAY && day <= DAYS_IN_MONTH && !CLOSED_DAYS.includes(day);
+/* ── current-month helpers, for the staff calendar's month view ────────── */
+
+export function monthGrid() {
+  const { y, m } = clinicTodayParts();
+  const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const firstWeekday = new Date(Date.UTC(y, m, 1)).getUTCDay(); // 0 = Sunday
+  return {
+    year: y,
+    monthZeroBased: m,
+    label: `${MONTHS[m]} ${y}`,
+    daysInMonth,
+    /** Blank cells before day 1 when the grid starts on Monday. */
+    leadingBlanks: (firstWeekday + 6) % 7,
+    isoForDay: (day: number) => isoOf(y, m, day),
+  };
 }
 
-export type CalendarCell =
-  | { blank: true; key: string }
-  | { blank: false; key: string; day: number; disabled: boolean; note: string };
-
-export function calendarCells(): CalendarCell[] {
-  const cells: CalendarCell[] = [{ blank: true, key: "b0" }];
-  for (let day = 1; day <= DAYS_IN_MONTH; day++) {
-    const past = day < TODAY_DAY;
-    const closed = CLOSED_DAYS.includes(day);
-    cells.push({
-      blank: false,
-      key: `d${day}`,
-      day,
-      disabled: past || closed,
-      note: past ? "" : closed ? "Full" : "",
-    });
-  }
-  return cells;
-}
+/* ── appointment types & steps ────────────────────────────────────────── */
 
 export const appointmentTypes = [
   { key: "new", name: "New consultation", note: "First visit for a new problem" },

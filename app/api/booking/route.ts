@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isSlotFree } from "@/lib/availability";
 import { notifyNewBooking } from "@/lib/notify";
 import { isValidEmail, isValidPhone, isVerified } from "@/lib/otp";
-import { appointmentTypes, isBookable, isoFor } from "@/lib/schedule";
+import { appointmentTypes, isBookable, isoForOffset } from "@/lib/schedule";
 import { createAppointment, SlotTakenError } from "@/lib/store";
 
 type BookingRequest = {
@@ -37,7 +37,10 @@ export async function POST(request: Request) {
   }
 
   if (!isBookable(day)) {
-    return NextResponse.json({ error: "The clinic is not open on that date." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Pick a day between tomorrow and ten days from now." },
+      { status: 400 },
+    );
   }
 
   /* Honeypot — real submissions leave this hidden field empty. */
@@ -82,7 +85,7 @@ export async function POST(request: Request) {
       email,
       age: body.age?.trim() || "—",
       type: appointmentType.name,
-      date: isoFor(day),
+      date: isoForOffset(day),
       time: slot,
       reason: body.reason?.trim() || "—",
       history: "—",
