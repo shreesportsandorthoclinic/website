@@ -14,9 +14,14 @@ import { occupiesSlot, type Appointment, type Status } from "./types";
 
 export { statusInk } from "./status";
 
-const TODAY = todayIso();
-export { TODAY };
-export const TODAY_LABEL = longLabelForOffset(0);
+/* "Today" must be read per request, never cached at module scope: a
+   Cloudflare Worker isolate outlives the day it booted on, so a module-level
+   constant here quietly shows yesterday's date until the isolate is
+   recycled. */
+export { todayIso as today };
+export function todayLabel() {
+  return longLabelForOffset(0);
+}
 
 /* The staff pages read the appointment list several times per render (day,
    week and month views, plus the dashboard tiles). cache() makes that one
@@ -26,6 +31,7 @@ const allAppointments = cache(listAppointments);
 
 /** Everything the dashboard needs, from one pass over the store. */
 export async function dashboard() {
+  const TODAY = todayIso();
   const all = await allAppointments();
   const today = all.filter((a) => a.date === TODAY);
   const upcoming = all.filter((a) => a.date > TODAY);
@@ -55,7 +61,7 @@ async function openSlotsOn(iso: string) {
 /** The day view: every slot the clinic's hours put on `iso` (default today) —
     booked, open, or blocked. Blocked slots stay in the list so staff see the
     day as it really looks; the view labels them "Busy". */
-export async function dayRows(iso: string = TODAY) {
+export async function dayRows(iso: string = todayIso()) {
   const all = await allAppointments();
   const byTime = new Map(
     all.filter((a) => a.date === iso && occupiesSlot(a.status)).map((a) => [a.time, a]),
@@ -75,7 +81,7 @@ export async function dayRows(iso: string = TODAY) {
 
 /** The seven days of the current week (Monday–Sunday) that contains today. */
 function currentWeekIsos() {
-  const [y, m, d] = TODAY.split("-").map(Number);
+  const [y, m, d] = todayIso().split("-").map(Number);
   const midday = Date.UTC(y, m - 1, d);
   const weekday = new Date(midday).getUTCDay(); // 0 = Sunday
   const mondayOffset = (weekday + 6) % 7;
@@ -86,21 +92,46 @@ function currentWeekIsos() {
   return isos;
 }
 
-export async function weekColumns() {
+/** One column of the week view. Every slot the day's hours produce is kept,
+    tagged so the grid can colour it — booked, blocked or open. */
+export type WeekSlot = { time: string; state: "booked" | "blocked" | "open" };
+
+export type WeekColumn = {
+  name: string;
+  iso: string;
+  today: boolean;
+  closed: boolean;
+  booked: number;
+  open: number;
+  blocked: number;
+  slots: WeekSlot[];
+};
+
+export async function weekColumns(): Promise<WeekColumn[]> {
+  const TODAY = todayIso();
   const all = await allAppointments();
 
-  const columns = [];
+  const columns: WeekColumn[] = [];
   for (const iso of currentWeekIsos()) {
     const [y, m, d] = iso.split("-").map(Number);
     const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-    const capacity = (await slotTimesForDate(iso)).length;
-    const booked = all.filter((a) => a.date === iso && occupiesSlot(a.status)).length;
+    const onDate = all.filter((a) => a.date === iso && occupiesSlot(a.status));
+    const takenAt = new Set(onDate.map((a) => a.time));
+
+    const slots: WeekSlot[] = (await daySlots(iso)).map((slot) => ({
+      time: slot.time,
+      state: takenAt.has(slot.time) ? "booked" : slot.blocked ? "blocked" : "open",
+    }));
+
     columns.push({
       name: `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday]} ${d}`,
-      capacity,
-      booked,
-      open: Math.max(capacity - booked, 0),
+      iso,
       today: iso === TODAY,
+      closed: slots.length === 0,
+      booked: onDate.length,
+      open: slots.filter((s) => s.state === "open").length,
+      blocked: slots.filter((s) => s.state === "blocked").length,
+      slots,
     });
   }
   return columns;
@@ -111,6 +142,7 @@ export type MonthCell =
   | { blank: false; day: number; count: number; closed: boolean; today: boolean };
 
 export async function monthCells(): Promise<MonthCell[]> {
+  const TODAY = todayIso();
   const all = await allAppointments();
   const week = await getWeeklyHours();
   const closures = await getClosures();
@@ -162,7 +194,7 @@ export async function getAvailabilityRows(): Promise<AvailabilityRow[]> {
 }
 
 export async function getCurrentBlocks() {
-  const closures = await getClosures(TODAY);
+  const closures = await getClosures(todayIso());
   return closures.map((c) => ({
     id: c.id,
     date: shortDate(c.date),

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import StatusButton from "@/components/StatusButton";
 import StatusTag from "@/components/StatusTag";
-import { dashboard, TODAY_LABEL } from "@/lib/practice";
+import { dashboard, todayLabel } from "@/lib/practice";
 import { shortDate } from "@/lib/schedule";
 
 export const metadata: Metadata = { title: "Practice — today" };
@@ -31,7 +31,7 @@ export default async function PracticeDashboard() {
           marginBottom: 32,
         }}
       >
-        <h1 style={{ fontSize: 36, letterSpacing: "-0.03em", margin: 0 }}>{TODAY_LABEL}</h1>
+        <h1 style={{ fontSize: 36, letterSpacing: "-0.03em", margin: 0 }}>{todayLabel()}</h1>
         <div style={{ display: "flex", gap: 10 }}>
           <Link className="btn btn-secondary" href="/staff/calendar" style={{ fontSize: 12, padding: "12px 22px" }}>
             Open calendar

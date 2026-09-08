@@ -1,0 +1,143 @@
+{
+  "info": {
+    "name": "Shree Sports & Ortho — booking API",
+    "description": "End-to-end booking flow for testing: pick a free slot, get a one-time code, exchange it for a verification token, then submit the booking. Each request stores what the next one needs in collection variables, so you can just hit Send four times in order.\n\nSet `baseUrl` to http://localhost:3000 for `npm run dev`, or to the deployed site.\n\nThe code comes back in the response as `devCode` ONLY while no email provider is configured (RESEND_API_KEY unset). Once real email is switched on, read the code from the inbox and set `code` by hand before sending 'Verify the code'.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "day", "value": "1", "description": "Days from today: 1 = tomorrow … 10 = furthest bookable day." },
+    { "key": "name", "value": "Postman Test" },
+    { "key": "email", "value": "postman.test@example.com" },
+    { "key": "phone", "value": "9876543210" },
+    { "key": "type", "value": "new", "description": "new | follow | sports | physio | other" },
+    { "key": "slot", "value": "" },
+    { "key": "otpId", "value": "" },
+    { "key": "code", "value": "" },
+    { "key": "verificationToken", "value": "" },
+    { "key": "reference", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1 · Free slots for a day",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/availability?day={{day}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "availability"],
+          "query": [{ "key": "day", "value": "{{day}}" }]
+        },
+        "description": "Slot times for the day `day` days from today, each marked `taken`. `closed: true` means the clinic is shut that day — bump `day` and send again."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('the clinic is open that day', () => pm.expect(body.closed, 'closed').to.equal(false));",
+              "const free = (body.slots || []).filter((s) => !s.taken);",
+              "pm.test('at least one free slot', () => pm.expect(free.length).to.be.above(0));",
+              "if (free.length) {",
+              "  pm.collectionVariables.set('slot', free[0].time);",
+              "  console.log('Using slot:', free[0].time);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 · Request a verification code",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"phone\": \"{{phone}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/otp/request", "host": ["{{baseUrl}}"], "path": ["api", "otp", "request"] },
+        "description": "Issues a 6-digit code for this email. 30-second resend cooldown, 10-minute expiry, 4 live codes per address — a 429 means you sent this too soon."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set('otpId', body.id);",
+              "if (body.devCode) {",
+              "  pm.collectionVariables.set('code', body.devCode);",
+              "  console.log('Code from the response:', body.devCode);",
+              "} else {",
+              "  console.log('Email delivery is live — read the code from the inbox and set the `code` variable.');",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 · Verify the code",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"{{otpId}}\",\n  \"code\": \"{{code}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/otp/verify", "host": ["{{baseUrl}}"], "path": ["api", "otp", "verify"] },
+        "description": "Trades the code for a signed token bound to this exact email + phone. Valid 30 minutes; 5 wrong attempts burn the code."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('a token came back', () => pm.expect(body.token).to.be.a('string'));",
+              "if (body.token) pm.collectionVariables.set('verificationToken', body.token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 · Submit the booking",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"{{type}}\",\n  \"day\": {{day}},\n  \"slot\": \"{{slot}}\",\n  \"name\": \"{{name}}\",\n  \"phone\": \"{{phone}}\",\n  \"email\": \"{{email}}\",\n  \"age\": \"34\",\n  \"reason\": \"Postman test booking\",\n  \"company\": \"\",\n  \"verificationToken\": \"{{verificationToken}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/booking", "host": ["{{baseUrl}}"], "path": ["api", "booking"] },
+        "description": "Creates a PENDING appointment and fires the Telegram alert. `company` is a honeypot — leave it empty. The appointment shows up straight away on /staff.\n\n401 = the token is missing, expired, or was issued for a different email/phone. 409 = someone took the slot; re-run request 1."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "if (body.reference) {",
+              "  pm.collectionVariables.set('reference', body.reference);",
+              "  console.log('Booking reference:', body.reference);",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

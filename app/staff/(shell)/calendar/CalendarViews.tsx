@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { blockSlotAction, removeClosureAction } from "@/app/staff/actions";
 import StatusTag from "@/components/StatusTag";
-import type { MonthCell } from "@/lib/practice";
+import type { MonthCell, WeekColumn, WeekSlot } from "@/lib/practice";
 import type { Appointment } from "@/lib/types";
 
 type DayRow = {
@@ -13,8 +13,66 @@ type DayRow = {
   blocked: boolean;
   closureId: string | null;
 };
-type WeekColumn = { name: string; capacity: number; booked: number; open: number; today: boolean };
 type View = "day" | "week" | "month";
+
+/* One palette for both the week grid and its legend, so they can never drift:
+   green = booked, white = open, red = blocked. */
+const SLOT_INK: Record<WeekSlot["state"], { background: string; color: string; border: string }> = {
+  booked: {
+    background: "var(--color-accent-600)",
+    color: "#ffffff",
+    border: "1px solid var(--color-accent-600)",
+  },
+  open: {
+    background: "var(--color-bg)",
+    color: "var(--color-neutral-700)",
+    border: "1px solid var(--color-divider)",
+  },
+  blocked: {
+    background: "var(--color-accent-2-600)",
+    color: "#ffffff",
+    border: "1px solid var(--color-accent-2-600)",
+  },
+};
+
+const LEGEND: Array<{ state: WeekSlot["state"]; label: string }> = [
+  { state: "booked", label: "Booked" },
+  { state: "open", label: "Open" },
+  { state: "blocked", label: "Blocked" },
+];
+
+function Legend() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 18,
+        marginTop: 16,
+        fontSize: 13,
+        color: "var(--color-neutral-700)",
+      }}
+    >
+      {LEGEND.map(({ state, label }) => (
+        <span key={state} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span
+            aria-hidden
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: 4,
+              background: SLOT_INK[state].background,
+              border: SLOT_INK[state].border,
+            }}
+          />
+          {label}
+        </span>
+      ))}
+      <span>Each cell is one 15-minute slot.</span>
+    </div>
+  );
+}
 
 export default function CalendarViews({
   dayRows,
@@ -239,10 +297,10 @@ export default function CalendarViews({
           >
             {weekColumns.map((column) => (
               <div
-                key={column.name}
+                key={column.iso}
                 style={{
                   background: column.today ? "var(--color-accent-100)" : "var(--color-bg)",
-                  padding: 16,
+                  padding: 12,
                   minHeight: 280,
                 }}
               >
@@ -257,29 +315,36 @@ export default function CalendarViews({
                 >
                   {column.name}
                 </p>
-                <p style={{ fontSize: 15, margin: "0 0 4px" }}>{column.booked} booked</p>
-                <p style={{ fontSize: 13, color: "var(--color-neutral-600)", margin: "0 0 14px" }}>
-                  {column.open} open
+                <p style={{ fontSize: 15, margin: "0 0 2px" }}>{column.booked} booked</p>
+                <p style={{ fontSize: 13, color: "var(--color-neutral-600)", margin: "0 0 12px" }}>
+                  {column.closed
+                    ? "Closed"
+                    : `${column.open} open${column.blocked ? ` · ${column.blocked} blocked` : ""}`}
                 </p>
-                <div style={{ display: "grid", gap: 3 }}>
-                  {Array.from({ length: column.capacity }).map((_, j) => (
+                <div style={{ display: "grid", gap: 2 }}>
+                  {column.slots.map((slot) => (
                     <span
-                      key={j}
+                      key={slot.time}
+                      title={`${slot.time} — ${slot.state}`}
                       style={{
-                        height: 9,
+                        ...SLOT_INK[slot.state],
                         display: "block",
-                        background:
-                          j < column.booked ? "var(--color-accent)" : "var(--color-neutral-200)",
+                        padding: "2px 5px",
+                        borderRadius: 4,
+                        fontSize: 10.5,
+                        lineHeight: 1.5,
+                        fontVariantNumeric: "tabular-nums",
+                        whiteSpace: "nowrap",
                       }}
-                    />
+                    >
+                      {slot.time}
+                    </span>
                   ))}
                 </div>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 13, color: "var(--color-neutral-600)", marginTop: 14 }}>
-            Each bar is one 15-minute slot. Filled bars are booked.
-          </p>
+          <Legend />
         </>
       )}
 

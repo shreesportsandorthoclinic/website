@@ -82,6 +82,10 @@ for the app to work.
 
 ## Scheduling — hours, slots and closures
 
+**Never cache "today" at module scope** — a Worker isolate outlives the day it
+booted on, so `const TODAY = todayIso()` at the top of a module silently serves
+yesterday's date until the isolate recycles. Call `todayIso()` per request.
+
 **`lib/schedule.ts`** is pure date/time math (no DB): IST "today", the rolling
 booking window (`MIN_ADVANCE_DAYS` 1 → `MAX_ADVANCE_DAYS` 10), slot-label
 helpers, `DEFAULT_WINDOWS` (08:00–14:00 & 19:00–21:00), `SLOT_MINUTES` (15).
@@ -129,6 +133,15 @@ reflects live hours, closures and what is already booked.
   HMAC-signed token bound to that exact email+phone; `/api/booking` rejects
   anything without a valid one. Also a honeypot field (`company`), a 30s
   resend cooldown, 10-minute expiry and 5-attempt limit.
+
+## Testing bookings without an inbox
+
+`docs/postman/` holds a Postman collection that walks the whole public flow —
+free slots → OTP request → verify → booking — chaining the ids and tokens
+automatically. It works today because `/api/otp/request` returns the code as
+`devCode` while `RESEND_API_KEY` is unset; once real email is on, the code has
+to come from the inbox. There is deliberately **no** bypass of the
+verification token in `/api/booking`. See `docs/postman/README.md`.
 
 ## Staff area (`/staff`)
 
