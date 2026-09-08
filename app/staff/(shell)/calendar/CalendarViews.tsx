@@ -2,12 +2,17 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { blockSlotAction } from "@/app/staff/actions";
+import { blockSlotAction, removeClosureAction } from "@/app/staff/actions";
 import StatusTag from "@/components/StatusTag";
 import type { MonthCell } from "@/lib/practice";
 import type { Appointment } from "@/lib/types";
 
-type DayRow = { time: string; appointment: Appointment | null };
+type DayRow = {
+  time: string;
+  appointment: Appointment | null;
+  blocked: boolean;
+  closureId: string | null;
+};
 type WeekColumn = { name: string; capacity: number; booked: number; open: number; today: boolean };
 type View = "day" | "week" | "month";
 
@@ -150,11 +155,20 @@ export default function CalendarViews({
                   {row.time}
                 </span>
                 <span>
-                  <span style={{ fontSize: 17, fontFamily: "var(--font-heading)" }}>
-                    {row.appointment ? row.appointment.name : "Open"}
+                  <span
+                    style={{
+                      fontSize: 17,
+                      fontFamily: "var(--font-heading)",
+                      color:
+                        !row.appointment && row.blocked
+                          ? "var(--color-accent-2-700)"
+                          : "var(--color-text)",
+                    }}
+                  >
+                    {row.appointment ? row.appointment.name : row.blocked ? "Busy" : "Open"}
                   </span>
                   <span style={{ display: "block", fontSize: 13, color: "var(--color-neutral-600)" }}>
-                    {row.appointment?.type ?? ""}
+                    {row.appointment?.type ?? (row.blocked ? "Blocked — not offered to patients" : "")}
                   </span>
                 </span>
                 <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -169,6 +183,29 @@ export default function CalendarViews({
                         Open
                       </Link>
                     </>
+                  ) : row.blocked ? (
+                    /* Only a closure that is exactly this slot can be lifted from
+                       here — a wider blocked range belongs to /staff/availability. */
+                    row.closureId ? (
+                      <form action={removeClosureAction}>
+                        <input type="hidden" name="id" value={row.closureId} />
+                        <button
+                          className="btn btn-ghost"
+                          type="submit"
+                          style={{ fontSize: 13, color: "var(--color-neutral-600)" }}
+                        >
+                          Unblock
+                        </button>
+                      </form>
+                    ) : (
+                      <Link
+                        className="btn btn-ghost"
+                        href="/staff/availability"
+                        style={{ fontSize: 13, color: "var(--color-neutral-600)" }}
+                      >
+                        Manage
+                      </Link>
+                    )
                   ) : (
                     <form action={blockSlotAction}>
                       <input type="hidden" name="date" value={dayIso} />

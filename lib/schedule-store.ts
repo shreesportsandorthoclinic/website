@@ -12,6 +12,7 @@ import {
   MIN_ADVANCE_DAYS,
   minutesToClock,
   partsOfIso,
+  SLOT_MINUTES,
   slotLabelToMinutes,
 } from "./schedule";
 
@@ -218,9 +219,15 @@ export async function removeClosure(id: string) {
 
 /* ── the derived schedule the rest of the app consumes ────────────────── */
 
-/** Slot labels the clinic offers on a date, after weekly hours and closures.
-    Empty means nothing is bookable that day. */
-export async function slotTimesForDate(iso: string): Promise<string[]> {
+/** Every slot the clinic's weekly hours put on a date, each flagged if a
+    closure covers it. The staff day view shows blocked slots as "Busy"
+    rather than hiding them, so `closureId` names the closure to lift when it
+    is exactly this one slot (a wider blocked range has no single-slot undo).
+    An empty array means the day is off entirely — weekly-closed or a
+    full-day closure. */
+export type DaySlot = { time: string; blocked: boolean; closureId: string | null };
+
+export async function daySlots(iso: string): Promise<DaySlot[]> {
   const { weekday } = partsOfIso(iso);
   /* Both reads are cache()'d, so calling this in a loop costs one query each
      the first time and nothing after. Sequential, not Promise.all — the
@@ -233,14 +240,20 @@ export async function slotTimesForDate(iso: string): Promise<string[]> {
   const onDate = closures.filter((c) => c.date === iso);
   if (onDate.some((c) => c.fromMin == null)) return []; // full-day closure
 
-  const blocked = onDate
-    .filter((c) => c.fromMin != null && c.toMin != null)
-    .map((c) => [c.fromMin as number, c.toMin as number] as Window);
+  const ranges = onDate.filter((c) => c.fromMin != null && c.toMin != null);
 
-  return buildSlots(day.windows).filter((label) => {
-    const m = slotLabelToMinutes(label);
-    return !blocked.some(([s, e]) => m >= s && m < e);
+  return buildSlots(day.windows).map((time) => {
+    const m = slotLabelToMinutes(time);
+    const covering = ranges.filter((c) => m >= (c.fromMin as number) && m < (c.toMin as number));
+    const exact = covering.find((c) => c.fromMin === m && c.toMin === m + SLOT_MINUTES);
+    return { time, blocked: covering.length > 0, closureId: exact?.id ?? null };
   });
+}
+
+/** Slot labels a patient can actually request on a date. Empty means nothing
+    is bookable that day. */
+export async function slotTimesForDate(iso: string): Promise<string[]> {
+  return (await daySlots(iso)).filter((slot) => !slot.blocked).map((slot) => slot.time);
 }
 
 export async function isDateBookable(iso: string): Promise<boolean> {

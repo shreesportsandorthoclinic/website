@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { longLabelForOffset, monthGrid, shortDate, todayIso } from "./schedule";
 import {
+  daySlots,
   getClosures,
   getWeeklyHours,
   slotTimesForDate,
@@ -51,19 +52,25 @@ async function openSlotsOn(iso: string) {
   return Math.max(capacity - booked, 0);
 }
 
-/** The day view: every slot the clinic offers on `iso` (default today),
-    filled or open. */
+/** The day view: every slot the clinic's hours put on `iso` (default today) —
+    booked, open, or blocked. Blocked slots stay in the list so staff see the
+    day as it really looks; the view labels them "Busy". */
 export async function dayRows(iso: string = TODAY) {
   const all = await allAppointments();
   const byTime = new Map(
     all.filter((a) => a.date === iso && occupiesSlot(a.status)).map((a) => [a.time, a]),
   );
 
-  const times = await slotTimesForDate(iso);
-  return times
+  const slots = await daySlots(iso);
+  return slots
     .slice()
-    .sort(compareTimes)
-    .map((time) => ({ time, appointment: byTime.get(time) ?? null }));
+    .sort((a, b) => compareTimes(a.time, b.time))
+    .map((slot) => ({
+      time: slot.time,
+      appointment: byTime.get(slot.time) ?? null,
+      blocked: slot.blocked,
+      closureId: slot.closureId,
+    }));
 }
 
 /** The seven days of the current week (Monday–Sunday) that contains today. */
