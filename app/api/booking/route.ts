@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isSlotFree } from "@/lib/availability";
+import { notifyNewBooking } from "@/lib/notify";
 import { isValidEmail, isValidPhone, isVerified } from "@/lib/otp";
 import { appointmentTypes, isBookable, isoFor } from "@/lib/schedule";
 import { createAppointment, SlotTakenError } from "@/lib/store";
@@ -86,6 +87,11 @@ export async function POST(request: Request) {
       reason: body.reason?.trim() || "—",
       history: "—",
     });
+
+    /* Alert the clinic on Telegram. Never let a notification failure turn a
+       successful booking into an error — notifyNewBooking swallows its own
+       errors, and this await only adds a few hundred ms. */
+    await notifyNewBooking(appointment);
 
     /* Requests arrive as PENDING; the clinic confirms them from /staff. */
     return NextResponse.json({ reference: appointment.reference }, { status: 201 });

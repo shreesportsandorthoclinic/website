@@ -73,6 +73,9 @@ production. Only `STAFF_*` are required for the app to work.
 | --- | --- | --- |
 | `STAFF_EMAIL`, `STAFF_PASSWORD` | yes | The single shared staff login. |
 | `STAFF_SESSION_SECRET` | yes | Signs the staff session cookie **and** the booking verification tokens. Must be a long random string in production — changing it invalidates all sessions and in-flight OTP tokens. |
+| `DATABASE_URL` | yes | Supabase transaction-pooler string (port 6543). Read by `lib/db.ts`. |
+| `SITE_URL` | no | The site's own public URL, for links inside notifications. Defaults to nothing (links are omitted). |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | no | New-booking alerts to the clinic on Telegram. `TELEGRAM_CHAT_ID` may be comma-separated. `npm run telegram:chat-id` helps find the id after the doctor messages the bot. Without these the alert is logged and skipped — a booking never fails over it. |
 | `RESEND_API_KEY`, `NOTIFY_FROM_EMAIL` | no | Real email delivery for booking OTPs. Without them the code is shown on screen and logged to the console — fine for dev, **no protection in production**. |
 | `GOOGLE_PLACES_API_KEY`, `GOOGLE_PLACE_ID` | no | Live Google reviews. Without them the site shows "read our reviews on Google" links instead. |
 
