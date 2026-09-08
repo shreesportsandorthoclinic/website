@@ -1,79 +1,78 @@
 import "server-only";
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { seedAppointments } from "./seed";
+import { sql } from "./db";
 import { occupiesSlot, type Appointment, type NewAppointment, type Status } from "./types";
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Temporary local store.
+   Appointments store — Supabase Postgres (`appointments` table, created by
+   db/schema.sql).
 
-   Appointments live in a JSON file under .data/. This is a stand-in for a
-   real database: it is single-process, it holds the whole table in memory on
-   every write, and on a serverless host the filesystem is ephemeral, so
-   anything written in production disappears. Fine for development and for
-   demonstrating the flow; replace before the clinic depends on it.
-
-   Every read and write in the app goes through the functions below, so
-   swapping in Postgres (or anything else) means reimplementing this file
-   only — no page or route needs to change.
+   Every read and write in the app goes through the functions below. Column
+   names are snake_case in the database and mapped to the camelCase
+   Appointment shape here, so nothing else in the app has to know.
    ───────────────────────────────────────────────────────────────────────── */
 
-const DATA_DIR = path.join(process.cwd(), ".data");
-const DATA_FILE = path.join(DATA_DIR, "appointments.json");
+type Row = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  age: string;
+  type: string;
+  date: string;
+  time: string;
+  status: Status;
+  reason: string;
+  history: string;
+  reference: string;
+  notes: string | null;
+  created_at: Date;
+};
 
-/* Writes are serialised through this chain so two concurrent requests cannot
-   read-modify-write over each other. */
-let queue: Promise<unknown> = Promise.resolve();
-
-function serialise<T>(work: () => Promise<T>): Promise<T> {
-  const next = queue.then(work, work);
-  queue = next.catch(() => {});
-  return next;
-}
-
-async function readAll(): Promise<Appointment[]> {
-  try {
-    const raw = await readFile(DATA_FILE, "utf8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed as Appointment[];
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT") throw error;
-  }
-  await writeAll(seedAppointments);
-  return [...seedAppointments];
-}
-
-async function writeAll(rows: Appointment[]) {
-  await mkdir(DATA_DIR, { recursive: true });
-  /* Write to a sibling file and rename, so an interrupted write cannot leave
-     a half-written JSON file behind. */
-  const temporary = `${DATA_FILE}.${process.pid}.tmp`;
-  await writeFile(temporary, JSON.stringify(rows, null, 2), "utf8");
-  await rename(temporary, DATA_FILE);
+function toAppointment(row: Row): Appointment {
+  const appointment: Appointment = {
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    email: row.email,
+    age: row.age,
+    type: row.type,
+    date: row.date,
+    time: row.time,
+    status: row.status,
+    reason: row.reason,
+    history: row.history,
+    reference: row.reference,
+    createdAt: row.created_at.toISOString(),
+  };
+  if (row.notes != null) appointment.notes = row.notes;
+  return appointment;
 }
 
 /* ── queries ──────────────────────────────────────────────────────────── */
 
 export async function listAppointments(): Promise<Appointment[]> {
-  const rows = await readAll();
-  return rows.sort((a, b) => a.date.localeCompare(b.date) || compareTimes(a.time, b.time));
+  const rows = await sql<Row[]>`select * from appointments`;
+  return rows
+    .map(toAppointment)
+    .sort((a, b) => a.date.localeCompare(b.date) || compareTimes(a.time, b.time));
 }
 
 export async function getAppointment(id: string): Promise<Appointment | null> {
-  const rows = await readAll();
-  return rows.find((row) => row.id === id) ?? null;
+  const [row] = await sql<Row[]>`select * from appointments where id = ${id}`;
+  return row ? toAppointment(row) : null;
 }
 
 export async function appointmentsOn(date: string): Promise<Appointment[]> {
-  const rows = await listAppointments();
-  return rows.filter((row) => row.date === date);
+  const rows = await sql<Row[]>`select * from appointments where date = ${date}`;
+  return rows.map(toAppointment).sort((a, b) => compareTimes(a.time, b.time));
 }
 
 /** Slot labels already spoken for on a given date. */
 export async function takenTimes(date: string): Promise<Set<string>> {
-  const rows = await appointmentsOn(date);
+  const rows = await sql<{ time: string; status: Status }[]>`
+    select time, status from appointments where date = ${date}
+  `;
   return new Set(rows.filter((row) => occupiesSlot(row.status)).map((row) => row.time));
 }
 
@@ -87,61 +86,44 @@ export class SlotTakenError extends Error {
 }
 
 export async function createAppointment(input: NewAppointment): Promise<Appointment> {
-  return serialise(async () => {
-    const rows = await readAll();
+  const status: Status = input.status ?? "PENDING";
+  const id = newId();
+  const bookingReference = reference(input.date);
 
-    const clash = rows.some(
-      (row) => row.date === input.date && row.time === input.time && occupiesSlot(row.status),
-    );
-    if (clash) throw new SlotTakenError();
+  /* Insert only if the slot is still free, evaluated inside the same
+     statement, so two bookings racing for one slot cannot both win. */
+  const rows = await sql<Row[]>`
+    insert into appointments
+      (id, name, phone, email, age, type, date, time, status, reason, history, reference)
+    select
+      ${id}, ${input.name}, ${input.phone}, ${input.email}, ${input.age},
+      ${input.type}, ${input.date}, ${input.time}, ${status}, ${input.reason},
+      ${input.history}, ${bookingReference}
+    where not exists (
+      select 1 from appointments
+      where date = ${input.date}
+        and time = ${input.time}
+        and status not in ('CANCELLED', 'NO-SHOW')
+    )
+    returning *
+  `;
 
-    const appointment: Appointment = {
-      ...input,
-      status: input.status ?? "PENDING",
-      id: newId(),
-      reference: reference(input.date),
-      createdAt: new Date().toISOString(),
-    };
-
-    await writeAll([...rows, appointment]);
-    return appointment;
-  });
+  if (rows.length === 0) throw new SlotTakenError();
+  return toAppointment(rows[0]);
 }
 
 export async function setStatus(id: string, status: Status): Promise<Appointment | null> {
-  return serialise(async () => {
-    const rows = await readAll();
-    const index = rows.findIndex((row) => row.id === id);
-    if (index === -1) return null;
-
-    const updated = { ...rows[index], status };
-    const next = [...rows];
-    next[index] = updated;
-    await writeAll(next);
-    return updated;
-  });
+  const [row] = await sql<Row[]>`
+    update appointments set status = ${status} where id = ${id} returning *
+  `;
+  return row ? toAppointment(row) : null;
 }
 
 export async function saveNotes(id: string, notes: string): Promise<Appointment | null> {
-  return serialise(async () => {
-    const rows = await readAll();
-    const index = rows.findIndex((row) => row.id === id);
-    if (index === -1) return null;
-
-    const updated: Appointment = { ...rows[index], notes };
-    const next = [...rows];
-    next[index] = updated;
-    await writeAll(next);
-    return updated;
-  });
-}
-
-/** Wipes the store back to the seed records. Used by `npm run db:reset`. */
-export async function resetStore() {
-  return serialise(async () => {
-    await writeAll(seedAppointments);
-    return seedAppointments.length;
-  });
+  const [row] = await sql<Row[]>`
+    update appointments set notes = ${notes} where id = ${id} returning *
+  `;
+  return row ? toAppointment(row) : null;
 }
 
 /* ── helpers ──────────────────────────────────────────────────────────── */

@@ -22,22 +22,31 @@ Router, Turbopack), React 19, TypeScript. No CSS framework — design tokens in
 Most copy lives in `lib/content.ts`. Prefer editing that over hardcoding
 strings in pages.
 
-## Data stores — READ THIS BEFORE DEPLOYING
+## Data stores
 
 `lib/store.ts` (appointments), `lib/library.ts` (health-library articles) and
-`lib/otp.ts` (verification codes) all persist to JSON files under `.data/`.
+`lib/otp.ts` (verification codes) all talk to **Supabase Postgres**. The only
+file that knows the connection details is `lib/db.ts`, which reads
+`DATABASE_URL` — the Supabase **transaction pooler** string (port 6543, needed
+for `prepare: false` and serverless-friendly connections). Every read and write
+goes through those three modules, so no page or route needs to change if the
+database moves again.
 
-**This does not survive on Vercel.** The serverless filesystem is ephemeral and
-per-instance, so in production: articles the doctor writes vanish on the next
-deploy, bookings are lost, and OTP codes may not be readable by the instance
-that has to verify them (which breaks booking outright under any real traffic).
+Setup:
 
-Before the clinic depends on this, move all three to a real database — Neon
-Postgres via the Vercel Marketplace is the intended path, with Vercel Blob for
-article images (currently stored inline as data URLs). Every read and write
-goes through those three files, so no page or route needs to change.
+1. Create the tables: paste `db/schema.sql` into the Supabase SQL editor and
+   run it (idempotent).
+2. `npm run db:seed` loads the starting health-library articles. Add `-- --demo`
+   to also insert the sample appointments from `lib/seed.ts` (dev only — do not
+   run `--demo` against the real clinic database).
+3. `npm run db:reset` empties all three tables and re-seeds with demo data.
 
-`npm run db:reset` clears `.data/`; it reseeds on the next request.
+Article hero images are still stored inline as data URLs in the `image` jsonb
+column. If they get large, move them to Supabase Storage — only `lib/library.ts`
+would change.
+
+`DATABASE_URL` must also be set in the Cloudflare project's environment
+variables for production.
 
 ## Environment variables
 

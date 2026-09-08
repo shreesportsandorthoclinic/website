@@ -56,8 +56,8 @@ the same responsive breakpoints do that job at any viewport.
 - `lib/schedule.ts` — the booking calendar for September 2026 (2 September is
   "today"), slot generation, appointment types.
 - `lib/practice.ts` — sample appointments and schedule data for the staff screens.
-- `app/api/booking/route.ts` — validates a booking request and returns a
-  reference. Nothing is persisted yet.
+- `app/api/booking/route.ts` — validates a booking request, writes it to the
+  database as `PENDING`, and returns a reference.
 
 Square-bracketed text (`[ To be confirmed ]`) is deliberate: the canvas marks
 every fact the clinic has not supplied in writing. Leave it in place until it is
@@ -65,18 +65,22 @@ confirmed — it renders in the secondary accent so it is obvious in review.
 
 ## Data
 
-Appointments live in a JSON file at `.data/appointments.json` (gitignored),
-seeded from `lib/seed.ts` on first request. This is a deliberate stand-in for a
-real database.
+Appointments, health-library articles and booking verification codes live in
+**Supabase Postgres**. `lib/db.ts` holds the only connection (`DATABASE_URL` —
+the Supabase transaction-pooler string, port 6543); `lib/store.ts`,
+`lib/library.ts` and `lib/otp.ts` are the only files that run queries. Nothing
+else in the app touches storage.
 
-Every read and write goes through `lib/store.ts`, so replacing it means
-reimplementing that one file — no page, route or component touches storage
-directly. The functions to reimplement are `listAppointments`, `getAppointment`,
-`appointmentsOn`, `takenTimes`, `createAppointment`, `setStatus` and
-`saveNotes`; they are already async, so nothing calling them changes.
+First-time setup:
 
 ```bash
-npm run db:reset     # wipe back to the seed records
+# 1. create the tables — paste db/schema.sql into the Supabase SQL editor
+# 2. load the starting health-library articles
+npm run db:seed
+# add sample appointments too (dev only):
+npm run db:seed -- --demo
+
+npm run db:reset     # empty all tables, then re-seed with demo data
 ```
 
 The layers around it:
@@ -98,17 +102,9 @@ at the API and at the moment of writing.
 Slot availability, the dashboard counts, and the week and month calendar loads
 are all derived from stored appointments rather than hardcoded.
 
-### Limits of the file store
-
-Single process, whole table rewritten on every write, and **on a serverless host
-the filesystem is ephemeral** — anything booked on a Vercel deployment will
-vanish. Fine locally and for a demo; replace before the clinic relies on it.
-
 ## Not yet real
 
 These are marked in the UI as well as here:
-
-- **Storage is a JSON file**, not a database — see above.
 - **Rescheduling only sets a status.** Nothing moves an appointment to a new
   slot yet: the staff button marks it `RESCHEDULED`, and the patient-side
   "Reschedule" starts a fresh pick without releasing the original booking.

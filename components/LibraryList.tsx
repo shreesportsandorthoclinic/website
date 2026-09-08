@@ -39,7 +39,10 @@ export default function LibraryList({ articles }: { articles: ListArticle[] }) {
   // Deep link: /library?a=<key> (used by the home page and staff preview).
   useEffect(() => {
     const key = new URLSearchParams(window.location.search).get("a");
-    if (key && articles.some((a) => a.key === key)) setOpenKey(key);
+    if (key && articles.some((a) => a.key === key)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of a browser-only value (the query string) that is not available during render/SSR.
+      setOpenKey(key);
+    }
   }, [articles]);
 
   // Close on Escape and lock body scroll while a dialog is open.

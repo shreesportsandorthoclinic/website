@@ -1,7 +1,6 @@
 import "server-only";
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { sql } from "./db";
 
 /* One-time-code verification for the public booking form.
 
@@ -10,53 +9,14 @@ import path from "node:path";
    script firing hundreds of fake bookings — because each one now needs a
    working inbox and a fresh code.
 
-   Codes live in a JSON file under .data/ (same stand-in store as everything
-   else — see lib/store.ts). Delivery goes through lib/notify.ts. */
+   Codes live in the `otp_codes` table (db/schema.sql). Delivery goes through
+   lib/notify.ts. */
 
 export const CODE_TTL_SECONDS = 10 * 60;
 const VERIFY_TOKEN_TTL_SECONDS = 30 * 60;
 const RESEND_COOLDOWN_SECONDS = 30;
 const MAX_ACTIVE_PER_EMAIL = 4;
 const MAX_ATTEMPTS = 5;
-
-type OtpRecord = {
-  id: string;
-  email: string;
-  phone: string;
-  code: string;
-  createdAt: number;
-  expiresAt: number;
-  attempts: number;
-  verified: boolean;
-};
-
-const DATA_DIR = path.join(process.cwd(), ".data");
-const DATA_FILE = path.join(DATA_DIR, "otp.json");
-
-let queue: Promise<unknown> = Promise.resolve();
-function serialise<T>(work: () => Promise<T>): Promise<T> {
-  const next = queue.then(work, work);
-  queue = next.catch(() => {});
-  return next;
-}
-
-async function readAll(): Promise<OtpRecord[]> {
-  try {
-    const raw = await readFile(DATA_FILE, "utf8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed as OtpRecord[];
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-  return [];
-}
-
-async function writeAll(rows: OtpRecord[]) {
-  await mkdir(DATA_DIR, { recursive: true });
-  const temporary = `${DATA_FILE}.${process.pid}.tmp`;
-  await writeFile(temporary, JSON.stringify(rows, null, 2), "utf8");
-  await rename(temporary, DATA_FILE);
-}
 
 export function normaliseEmail(value: string) {
   return value.trim().toLowerCase();
@@ -106,69 +66,62 @@ export async function requestCode(rawEmail: string, rawPhone: string): Promise<R
   if (!isValidEmail(email)) return { ok: false, error: "Enter a valid email address." };
   if (!isValidPhone(rawPhone)) return { ok: false, error: "Enter a valid phone number." };
 
-  return serialise(async () => {
-    const now = Date.now();
-    const rows = (await readAll()).filter((r) => r.expiresAt > now - CODE_TTL_SECONDS * 1000);
+  /* Opportunistic cleanup of long-dead rows so the table cannot grow without
+     bound. Anything older than an hour is well past any TTL. */
+  await sql`delete from otp_codes where expires_at < now() - interval '1 hour'`;
 
-    const mine = rows.filter((r) => r.email === email && !r.verified);
-    const newest = mine.reduce((max, r) => Math.max(max, r.createdAt), 0);
-    if (newest && now - newest < RESEND_COOLDOWN_SECONDS * 1000) {
-      return {
-        ok: false,
-        error: "A code was just sent. Wait a few seconds before asking for another.",
-        retryAfter: Math.ceil((RESEND_COOLDOWN_SECONDS * 1000 - (now - newest)) / 1000),
-      };
-    }
-    if (mine.filter((r) => r.expiresAt > now).length >= MAX_ACTIVE_PER_EMAIL) {
-      return { ok: false, error: "Too many codes requested. Try again later." };
-    }
+  const now = Date.now();
+  const mine = await sql<{ created_at: Date; expires_at: Date }[]>`
+    select created_at, expires_at from otp_codes
+    where email = ${email} and verified = false
+  `;
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const record: OtpRecord = {
-      id: newId(),
-      email,
-      phone,
-      code,
-      createdAt: now,
-      expiresAt: now + CODE_TTL_SECONDS * 1000,
-      attempts: 0,
-      verified: false,
+  const newest = mine.reduce((max, r) => Math.max(max, r.created_at.getTime()), 0);
+  if (newest && now - newest < RESEND_COOLDOWN_SECONDS * 1000) {
+    return {
+      ok: false,
+      error: "A code was just sent. Wait a few seconds before asking for another.",
+      retryAfter: Math.ceil((RESEND_COOLDOWN_SECONDS * 1000 - (now - newest)) / 1000),
     };
-    await writeAll([...rows, record]);
-    return { ok: true, id: record.id, code, email, phone };
-  });
+  }
+  if (mine.filter((r) => r.expires_at.getTime() > now).length >= MAX_ACTIVE_PER_EMAIL) {
+    return { ok: false, error: "Too many codes requested. Try again later." };
+  }
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const id = newId();
+  await sql`
+    insert into otp_codes (id, email, phone, code, expires_at)
+    values (${id}, ${email}, ${phone}, ${code}, ${new Date(now + CODE_TTL_SECONDS * 1000)})
+  `;
+  return { ok: true, id, code, email, phone };
 }
 
 export type VerifyResult = { ok: true; token: string } | { ok: false; error: string };
 
 export async function verifyCode(id: string, rawCode: string): Promise<VerifyResult> {
   const code = rawCode.replace(/[^\d]/g, "");
-  return serialise(async () => {
-    const rows = await readAll();
-    const index = rows.findIndex((r) => r.id === id);
-    if (index === -1) return { ok: false, error: "This code has expired. Request a new one." };
 
-    const record = rows[index];
-    if (Date.now() > record.expiresAt) {
-      return { ok: false, error: "This code has expired. Request a new one." };
-    }
-    if (record.attempts >= MAX_ATTEMPTS) {
-      return { ok: false, error: "Too many incorrect attempts. Request a new code." };
-    }
-    if (record.code !== code) {
-      rows[index] = { ...record, attempts: record.attempts + 1 };
-      await writeAll(rows);
-      return { ok: false, error: "That code is not correct." };
-    }
+  const [record] = await sql<
+    { email: string; phone: string; code: string; attempts: number; expires_at: Date }[]
+  >`select email, phone, code, attempts, expires_at from otp_codes where id = ${id}`;
 
-    rows[index] = { ...record, verified: true };
-    await writeAll(rows);
+  if (!record) return { ok: false, error: "This code has expired. Request a new one." };
+  if (Date.now() > record.expires_at.getTime()) {
+    return { ok: false, error: "This code has expired. Request a new one." };
+  }
+  if (record.attempts >= MAX_ATTEMPTS) {
+    return { ok: false, error: "Too many incorrect attempts. Request a new code." };
+  }
+  if (record.code !== code) {
+    await sql`update otp_codes set attempts = attempts + 1 where id = ${id}`;
+    return { ok: false, error: "That code is not correct." };
+  }
 
-    const body = base64url(
-      JSON.stringify({ e: record.email, p: record.phone, i: Date.now() }),
-    );
-    return { ok: true, token: `${body}.${await sign(body)}` };
-  });
+  await sql`update otp_codes set verified = true where id = ${id}`;
+
+  const body = base64url(JSON.stringify({ e: record.email, p: record.phone, i: Date.now() }));
+  return { ok: true, token: `${body}.${await sign(body)}` };
 }
 
 function base64url(input: string) {

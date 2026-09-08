@@ -1,21 +1,15 @@
 import "server-only";
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { articleBody, articles, type Block } from "./content";
+import type { Block } from "./content";
+import { sql } from "./db";
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Health-library store.
+   Health-library store — Supabase Postgres (`articles` table, created by
+   db/schema.sql).
 
-   Articles are editable from /staff/library. Like the appointments store,
-   this keeps them in a JSON file under .data/ — a stand-in for a real
-   database. On a serverless host the filesystem is ephemeral, so edits made
-   in production will not survive a redeploy; move this to a database (or
-   Vercel storage) before the clinic relies on it. Every read and write goes
-   through the functions below, so only this file changes.
-
-   Uploaded images are stored inline as data: URLs on the article, so there
-   is no upload directory to manage.
+   Articles are editable from /staff/library. `npm run db:seed` loads the
+   starting set. Hero images are stored inline as data: URLs on the row
+   (the `image` jsonb column), so there is no upload directory to manage.
    ───────────────────────────────────────────────────────────────────────── */
 
 export type ArticleImage = { src: string; alt: string };
@@ -35,53 +29,32 @@ export type LibraryArticle = {
 
 export type ArticleInput = Omit<LibraryArticle, "key" | "updatedAt">;
 
-const DATA_DIR = path.join(process.cwd(), ".data");
-const DATA_FILE = path.join(DATA_DIR, "articles.json");
+type Row = {
+  key: string;
+  title: string;
+  category: string;
+  read: string;
+  date: string;
+  author: string;
+  excerpt: string;
+  image: ArticleImage;
+  body: Block[];
+  updated_at: Date;
+};
 
-let queue: Promise<unknown> = Promise.resolve();
-function serialise<T>(work: () => Promise<T>): Promise<T> {
-  const next = queue.then(work, work);
-  queue = next.catch(() => {});
-  return next;
-}
-
-/* First-run seed: the articles currently hard-coded in content.ts, each
-   given its own copy of the one written body that shipped with the canvas. */
-function seed(): LibraryArticle[] {
-  const now = new Date().toISOString();
-  return Object.values(articles).map((a) => ({
-    key: a.key,
-    title: a.title,
-    category: a.category,
-    read: a.read,
-    date: a.date,
-    author: a.author,
-    excerpt: "",
-    image: { src: a.image.src, alt: a.image.alt },
-    body: articleBody.map((b) => ({ ...b })),
-    updatedAt: now,
-  }));
-}
-
-async function readAll(): Promise<LibraryArticle[]> {
-  try {
-    const raw = await readFile(DATA_FILE, "utf8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed as LibraryArticle[];
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT") throw error;
-  }
-  const seeded = seed();
-  await writeAll(seeded);
-  return seeded;
-}
-
-async function writeAll(rows: LibraryArticle[]) {
-  await mkdir(DATA_DIR, { recursive: true });
-  const temporary = `${DATA_FILE}.${process.pid}.tmp`;
-  await writeFile(temporary, JSON.stringify(rows, null, 2), "utf8");
-  await rename(temporary, DATA_FILE);
+function toArticle(row: Row): LibraryArticle {
+  return {
+    key: row.key,
+    title: row.title,
+    category: row.category,
+    read: row.read,
+    date: row.date,
+    author: row.author,
+    excerpt: row.excerpt,
+    image: row.image,
+    body: row.body,
+    updatedAt: row.updated_at.toISOString(),
+  };
 }
 
 function slugify(text: string) {
@@ -94,58 +67,69 @@ function slugify(text: string) {
   );
 }
 
+function isUniqueViolation(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
 /* ── queries ──────────────────────────────────────────────────────────── */
 
 export async function listArticles(): Promise<LibraryArticle[]> {
-  const rows = await readAll();
-  return [...rows].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const rows = await sql<Row[]>`select * from articles order by updated_at desc`;
+  return rows.map(toArticle);
 }
 
 export async function getArticle(key: string): Promise<LibraryArticle | null> {
-  const rows = await readAll();
-  return rows.find((row) => row.key === key) ?? null;
+  const [row] = await sql<Row[]>`select * from articles where key = ${key}`;
+  return row ? toArticle(row) : null;
 }
 
 /* ── mutations ────────────────────────────────────────────────────────── */
 
 export async function createArticle(input: ArticleInput): Promise<LibraryArticle> {
-  return serialise(async () => {
-    const rows = await readAll();
-    const base = slugify(input.title);
-    let key = base;
-    let n = 2;
-    while (rows.some((row) => row.key === key)) key = `${base}-${n++}`;
+  const base = slugify(input.title);
 
-    const article: LibraryArticle = {
-      ...input,
-      key,
-      updatedAt: new Date().toISOString(),
-    };
-    await writeAll([article, ...rows]);
-    return article;
-  });
+  /* Try the plain slug, then slug-2, slug-3, … until one is free. The
+     primary-key constraint is the real guard against a race between the
+     check and the insert — a collision just moves to the next suffix. */
+  for (let attempt = 1; attempt <= 50; attempt++) {
+    const key = attempt === 1 ? base : `${base}-${attempt}`;
+    try {
+      const [row] = await sql<Row[]>`
+        insert into articles (key, title, category, read, date, author, excerpt, image, body)
+        values (
+          ${key}, ${input.title}, ${input.category}, ${input.read}, ${input.date},
+          ${input.author}, ${input.excerpt}, ${sql.json(input.image)}, ${sql.json(input.body)}
+        )
+        on conflict (key) do nothing
+        returning *
+      `;
+      if (row) return toArticle(row);
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+    }
+  }
+  throw new Error("Could not allocate a unique article key");
 }
 
 export async function updateArticle(
   key: string,
   patch: Partial<ArticleInput>,
 ): Promise<LibraryArticle | null> {
-  return serialise(async () => {
-    const rows = await readAll();
-    const index = rows.findIndex((row) => row.key === key);
-    if (index === -1) return null;
-
-    const updated: LibraryArticle = {
-      ...rows[index],
-      ...patch,
-      key,
-      updatedAt: new Date().toISOString(),
-    };
-    const next = [...rows];
-    next[index] = updated;
-    await writeAll(next);
-    return updated;
-  });
+  const [row] = await sql<Row[]>`
+    update articles set
+      title = ${patch.title ?? sql`title`},
+      category = ${patch.category ?? sql`category`},
+      read = ${patch.read ?? sql`read`},
+      date = ${patch.date ?? sql`date`},
+      author = ${patch.author ?? sql`author`},
+      excerpt = ${patch.excerpt ?? sql`excerpt`},
+      image = ${patch.image ? sql.json(patch.image) : sql`image`},
+      body = ${patch.body ? sql.json(patch.body) : sql`body`},
+      updated_at = now()
+    where key = ${key}
+    returning *
+  `;
+  return row ? toArticle(row) : null;
 }
 
 /** Coerce untrusted JSON from the editor into a valid article input. */
@@ -175,11 +159,6 @@ export function normaliseInput(body: Partial<ArticleInput>): ArticleInput | null
 }
 
 export async function deleteArticle(key: string): Promise<boolean> {
-  return serialise(async () => {
-    const rows = await readAll();
-    const next = rows.filter((row) => row.key !== key);
-    if (next.length === rows.length) return false;
-    await writeAll(next);
-    return true;
-  });
+  const rows = await sql`delete from articles where key = ${key} returning key`;
+  return rows.length > 0;
 }
