@@ -2,8 +2,15 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
   "name": "website",
-  "compatibility_date": "2024-12-30",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_date": "2025-09-23",
+  // nodejs_compat_populate_process_env: without it, Worker vars and secrets
+  // are only on the Cloudflare env object, not process.env — which is how
+  // lib/db.ts, lib/auth.ts etc. read DATABASE_URL / STAFF_* / SITE_URL.
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env",
+    "global_fetch_strictly_public"
+  ],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
