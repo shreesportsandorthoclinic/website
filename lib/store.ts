@@ -1,6 +1,6 @@
 import "server-only";
 
-import { sql } from "./db";
+import { getSql } from "./db";
 import { occupiesSlot, type Appointment, type NewAppointment, type Status } from "./types";
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -52,6 +52,7 @@ function toAppointment(row: Row): Appointment {
 /* ── queries ──────────────────────────────────────────────────────────── */
 
 export async function listAppointments(): Promise<Appointment[]> {
+  const sql = getSql();
   const rows = await sql<Row[]>`select * from appointments`;
   return rows
     .map(toAppointment)
@@ -59,17 +60,20 @@ export async function listAppointments(): Promise<Appointment[]> {
 }
 
 export async function getAppointment(id: string): Promise<Appointment | null> {
+  const sql = getSql();
   const [row] = await sql<Row[]>`select * from appointments where id = ${id}`;
   return row ? toAppointment(row) : null;
 }
 
 export async function appointmentsOn(date: string): Promise<Appointment[]> {
+  const sql = getSql();
   const rows = await sql<Row[]>`select * from appointments where date = ${date}`;
   return rows.map(toAppointment).sort((a, b) => compareTimes(a.time, b.time));
 }
 
 /** Slot labels already spoken for on a given date. */
 export async function takenTimes(date: string): Promise<Set<string>> {
+  const sql = getSql();
   const rows = await sql<{ time: string; status: Status }[]>`
     select time, status from appointments where date = ${date}
   `;
@@ -89,6 +93,7 @@ export async function createAppointment(input: NewAppointment): Promise<Appointm
   const status: Status = input.status ?? "PENDING";
   const id = newId();
   const bookingReference = reference(input.date);
+  const sql = getSql();
 
   /* Insert only if the slot is still free, evaluated inside the same
      statement, so two bookings racing for one slot cannot both win. */
@@ -113,6 +118,7 @@ export async function createAppointment(input: NewAppointment): Promise<Appointm
 }
 
 export async function setStatus(id: string, status: Status): Promise<Appointment | null> {
+  const sql = getSql();
   const [row] = await sql<Row[]>`
     update appointments set status = ${status} where id = ${id} returning *
   `;
@@ -120,6 +126,7 @@ export async function setStatus(id: string, status: Status): Promise<Appointment
 }
 
 export async function saveNotes(id: string, notes: string): Promise<Appointment | null> {
+  const sql = getSql();
   const [row] = await sql<Row[]>`
     update appointments set notes = ${notes} where id = ${id} returning *
   `;

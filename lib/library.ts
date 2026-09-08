@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Block } from "./content";
-import { sql } from "./db";
+import { getSql } from "./db";
 
 /* ─────────────────────────────────────────────────────────────────────────
    Health-library store — Supabase Postgres (`articles` table, created by
@@ -74,11 +74,13 @@ function isUniqueViolation(error: unknown) {
 /* ── queries ──────────────────────────────────────────────────────────── */
 
 export async function listArticles(): Promise<LibraryArticle[]> {
+  const sql = getSql();
   const rows = await sql<Row[]>`select * from articles order by updated_at desc`;
   return rows.map(toArticle);
 }
 
 export async function getArticle(key: string): Promise<LibraryArticle | null> {
+  const sql = getSql();
   const [row] = await sql<Row[]>`select * from articles where key = ${key}`;
   return row ? toArticle(row) : null;
 }
@@ -86,6 +88,7 @@ export async function getArticle(key: string): Promise<LibraryArticle | null> {
 /* ── mutations ────────────────────────────────────────────────────────── */
 
 export async function createArticle(input: ArticleInput): Promise<LibraryArticle> {
+  const sql = getSql();
   const base = slugify(input.title);
 
   /* Try the plain slug, then slug-2, slug-3, … until one is free. The
@@ -115,6 +118,7 @@ export async function updateArticle(
   key: string,
   patch: Partial<ArticleInput>,
 ): Promise<LibraryArticle | null> {
+  const sql = getSql();
   const [row] = await sql<Row[]>`
     update articles set
       title = ${patch.title ?? sql`title`},
@@ -159,6 +163,7 @@ export function normaliseInput(body: Partial<ArticleInput>): ArticleInput | null
 }
 
 export async function deleteArticle(key: string): Promise<boolean> {
+  const sql = getSql();
   const rows = await sql`delete from articles where key = ${key} returning key`;
   return rows.length > 0;
 }

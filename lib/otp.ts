@@ -1,6 +1,6 @@
 import "server-only";
 
-import { sql } from "./db";
+import { getSql } from "./db";
 
 /* One-time-code verification for the public booking form.
 
@@ -66,6 +66,8 @@ export async function requestCode(rawEmail: string, rawPhone: string): Promise<R
   if (!isValidEmail(email)) return { ok: false, error: "Enter a valid email address." };
   if (!isValidPhone(rawPhone)) return { ok: false, error: "Enter a valid phone number." };
 
+  const sql = getSql();
+
   /* Opportunistic cleanup of long-dead rows so the table cannot grow without
      bound. Anything older than an hour is well past any TTL. */
   await sql`delete from otp_codes where expires_at < now() - interval '1 hour'`;
@@ -101,6 +103,7 @@ export type VerifyResult = { ok: true; token: string } | { ok: false; error: str
 
 export async function verifyCode(id: string, rawCode: string): Promise<VerifyResult> {
   const code = rawCode.replace(/[^\d]/g, "");
+  const sql = getSql();
 
   const [record] = await sql<
     { email: string; phone: string; code: string; attempts: number; expires_at: Date }[]

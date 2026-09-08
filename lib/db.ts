@@ -1,45 +1,50 @@
 import "server-only";
 
+import { cache } from "react";
 import postgres from "postgres";
 
 /* ─────────────────────────────────────────────────────────────────────────
-   The one database connection.
+   The database client — one per request.
 
-   Every data-access module (lib/store.ts, lib/library.ts, lib/otp.ts)
-   imports `sql` from here, so this is the only file that knows how the
-   database is reached.
+   Cloudflare Workers close every socket at the end of the request that
+   opened it. A long-lived, module-scope client whose connection is reused
+   across requests therefore hangs the *next* request when it reaches for a
+   socket that no longer exists ("Worker's code had hung and would never
+   generate a response").
 
-   `DATABASE_URL` is the Supabase *transaction pooler* string — the one on
-   port 6543. That pooler is built for short-lived serverless invocations
-   (which is how this runs on Cloudflare), but it does not support prepared
-   statements or session state, so `prepare: false` is required.
+   `cache()` from React scopes one client to one request: every query in a
+   request shares it, and the next request builds a fresh one. Supabase's
+   transaction pooler (the port-6543 `DATABASE_URL`) keeps the real
+   connection pool on its side, so opening a client per request is cheap.
 
-   The connection is cached on `globalThis` in development so Next.js hot
-   reloads reuse it instead of opening a new pool on every code change.
+   Every data-access module calls `getSql()` at the top of each function:
+
+     export async function listSomething() {
+       const sql = getSql();
+       return sql`select ...`;
+     }
+
+   Options that matter on the Workers runtime:
+     prepare: false      the transaction pooler holds no session state
+     fetch_types: false  skip the pg_type introspection round-trip, which
+                         hangs on workerd
+     max: 1              one socket; the pooler does the real pooling
    ───────────────────────────────────────────────────────────────────────── */
 
-const url = process.env.DATABASE_URL;
-if (!url) {
-  throw new Error(
-    "DATABASE_URL is not set. Put the Supabase transaction-pooler connection " +
-      "string (port 6543) in .env locally and in the Cloudflare project's " +
-      "environment variables for production. See CLAUDE.md.",
-  );
-}
-
-declare global {
-  var __clinicSql: ReturnType<typeof postgres> | undefined;
-}
-
-export const sql =
-  globalThis.__clinicSql ??
-  postgres(url, {
+export const getSql = cache(() => {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      "DATABASE_URL is not set. Put the Supabase transaction-pooler string " +
+        "(port 6543) in .env locally and in the Cloudflare Worker's " +
+        "environment variables for production. See CLAUDE.md.",
+    );
+  }
+  return postgres(url, {
     prepare: false,
-    max: 5,
-    idle_timeout: 20,
+    fetch_types: false,
+    max: 1,
+    idle_timeout: 10,
     connect_timeout: 15,
   });
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__clinicSql = sql;
-}
+});

@@ -7,6 +7,14 @@ orthopaedic clinic in Electronic City Phase-1, Bengaluru. Next.js 16 (App
 Router, Turbopack), React 19, TypeScript. No CSS framework — design tokens in
 `app/globals.css`, everything else inline styles.
 
+**Deploys to Cloudflare Workers** via `@opennextjs/cloudflare` (`wrangler.jsonc`,
+`open-next.config.ts`). `npm run preview` runs the built worker locally;
+`npm run deploy` ships it. Cloudflare's build settings: build command
+`npx opennextjs-cloudflare build`, deploy command `npx opennextjs-cloudflare
+deploy`. Required env vars on the Worker: `DATABASE_URL`, `STAFF_EMAIL`,
+`STAFF_PASSWORD`, `STAFF_SESSION_SECRET` (and `RESEND_*` / `GOOGLE_*` when
+ready). The `nodejs_compat` flag is set — needed for `postgres` and `Buffer`.
+
 ## Layout
 
 - `app/(site)/` — public site. `/`, `/conditions`, `/treatments`, `/about`,
@@ -26,11 +34,19 @@ strings in pages.
 
 `lib/store.ts` (appointments), `lib/library.ts` (health-library articles) and
 `lib/otp.ts` (verification codes) all talk to **Supabase Postgres**. The only
-file that knows the connection details is `lib/db.ts`, which reads
-`DATABASE_URL` — the Supabase **transaction pooler** string (port 6543, needed
-for `prepare: false` and serverless-friendly connections). Every read and write
-goes through those three modules, so no page or route needs to change if the
-database moves again.
+file that knows the connection is `lib/db.ts`, which exports `getSql()` — a
+`cache()`-wrapped `postgres` client reading `DATABASE_URL` (the Supabase
+**transaction pooler** string, port 6543).
+
+**`getSql()` returns a client scoped to the current request, not a shared
+one.** Cloudflare Workers close sockets at the end of each request, so a
+module-scope client hangs the next request. Every data-access function starts
+with `const sql = getSql();`. Keep that pattern; never hoist `sql` to module
+scope. `prepare: false` + `fetch_types: false` are also required for the
+Workers runtime.
+
+Every read and write goes through those three modules, so no page or route
+changes if the database moves again.
 
 Setup:
 
