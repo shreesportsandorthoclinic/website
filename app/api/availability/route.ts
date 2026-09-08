@@ -15,5 +15,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ day, slots: [], closed: true });
   }
 
-  return NextResponse.json({ day, slots: await slotsFor(day), closed: false });
+  const slots = await slotsFor(day);
+  /* No slots here means the clinic is closed that day (weekly-off or a
+     full-day closure) — tell the form so it can say so. */
+  return NextResponse.json({ day, slots, closed: slots.length === 0 });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isSlotFree } from "@/lib/availability";
+import { isOffsetBookable, isSlotFree } from "@/lib/availability";
 import { notifyNewBooking } from "@/lib/notify";
 import { isValidEmail, isValidPhone, isVerified } from "@/lib/otp";
 import { appointmentTypes, isBookable, isoForOffset } from "@/lib/schedule";
@@ -39,6 +39,13 @@ export async function POST(request: Request) {
   if (!isBookable(day)) {
     return NextResponse.json(
       { error: "Pick a day between tomorrow and ten days from now." },
+      { status: 400 },
+    );
+  }
+
+  if (!(await isOffsetBookable(day))) {
+    return NextResponse.json(
+      { error: "The clinic is closed on that date. Please choose another day." },
       { status: 400 },
     );
   }

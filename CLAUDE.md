@@ -32,11 +32,11 @@ strings in pages.
 
 ## Data stores
 
-`lib/store.ts` (appointments), `lib/library.ts` (health-library articles) and
-`lib/otp.ts` (verification codes) all talk to **Supabase Postgres**. The only
-file that knows the connection is `lib/db.ts`, which exports `getSql()` — a
-`cache()`-wrapped `postgres` client reading `DATABASE_URL` (the Supabase
-**transaction pooler** string, port 6543).
+`lib/store.ts` (appointments), `lib/library.ts` (articles), `lib/otp.ts`
+(verification codes) and `lib/schedule-store.ts` (hours + closures) all talk to
+**Supabase Postgres**. The only file that knows the connection is `lib/db.ts`,
+which exports `getSql()` — a `cache()`-wrapped `postgres` client reading
+`DATABASE_URL` (the Supabase **transaction pooler** string, port 6543).
 
 **`getSql()` returns a client scoped to the current request, not a shared
 one.** Cloudflare Workers close sockets at the end of each request, so a
@@ -55,7 +55,8 @@ Setup:
 2. `npm run db:seed` loads the starting health-library articles. Add `-- --demo`
    to also insert the sample appointments from `lib/seed.ts` (dev only — do not
    run `--demo` against the real clinic database).
-3. `npm run db:reset` empties all three tables and re-seeds with demo data.
+3. `npm run db:reset` empties every table and re-seeds articles, the seven
+   `schedule_hours` weekday rows and demo appointments.
 
 Article hero images are still stored inline as data URLs in the `image` jsonb
 column. If they get large, move them to Supabase Storage — only `lib/library.ts`
@@ -66,8 +67,9 @@ variables for production.
 
 ## Environment variables
 
-All in `.env` locally (gitignored); set them in the Vercel project for
-production. Only `STAFF_*` are required for the app to work.
+All in `.env` locally (gitignored); set them as Cloudflare Worker environment
+variables / secrets for production. `STAFF_*` and `DATABASE_URL` are required
+for the app to work.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
@@ -78,24 +80,50 @@ production. Only `STAFF_*` are required for the app to work.
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | no | New-booking alerts to the clinic on Telegram. `TELEGRAM_CHAT_ID` may be comma-separated. `npm run telegram:chat-id` helps find the id after the doctor messages the bot. Without these the alert is logged and skipped — a booking never fails over it. |
 | `RESEND_API_KEY`, `NOTIFY_FROM_EMAIL` | no | Real email delivery for booking OTPs. Without them the code is shown on screen and logged to the console — fine for dev, **no protection in production**. |
 
+## Scheduling — hours, slots and closures
+
+**`lib/schedule.ts`** is pure date/time math (no DB): IST "today", the rolling
+booking window (`MIN_ADVANCE_DAYS` 1 → `MAX_ADVANCE_DAYS` 10), slot-label
+helpers, `DEFAULT_WINDOWS` (08:00–14:00 & 19:00–21:00), `SLOT_MINUTES` (15).
+Safe to import from client components.
+
+**`lib/schedule-store.ts`** is the live schedule, backed by two tables:
+
+- `schedule_hours` — one row per weekday (0=Sun…6=Sat): `is_open` + `windows`
+  (`[[startMin,endMin],…]`). Missing rows fall back to `DEFAULT_WINDOWS`, and a
+  missing table (error `42P01`) is caught so bookings still work before
+  `db/schema.sql` is run.
+- `schedule_closures` — full-day closures (`from_min`/`to_min` null) or a
+  blocked time range on one date.
+
+`slotTimesForDate(iso)`, `isDateBookable(iso)` and `getBookingWindow()` derive
+everything from those. `getWeeklyHours()` and the closures read are
+`cache()`-wrapped — call them freely in loops, they hit the DB once per
+request. **Do the reads sequentially, not `Promise.all` — the Supabase
+transaction pooler stalls on pipelined queries** (this caused the staff
+calendar to hang; see `lib/practice.ts` and `app/staff/(shell)/calendar/page.tsx`).
+
+Staff edit all of this on **`/staff/availability`** (weekly hours per weekday,
+plus close-a-day / block-time), and can block a single slot from the day view
+on **`/staff/calendar`**. The server actions are in `app/staff/actions.ts`
+(`saveWeekdayHoursAction`, `addClosureAction`, `removeClosureAction`,
+`blockSlotAction`), each guarded by `requireStaffSession()`.
+
+`/book` is now a server component that fetches `getBookingWindow()` and passes
+it to the client `BookFlow`, so closed days are struck through in the chooser.
+
+**`clinic.hours` in `lib/content.ts`** (header / home / contact marketing copy)
+is still the static `DEFAULT_WINDOWS` label — it is deliberately not wired to
+`schedule_hours`, since that is operational, not marketing. If the clinic
+changes its standard hours for good, update `DEFAULT_WINDOWS`.
+
 ## Booking flow (`/book`)
 
-Four steps: appointment type → doctor → date & time → details. All client
-state in one component; availability is fetched from `/api/availability` so
-the grid reflects what is actually booked.
+Four steps: appointment type → doctor → date & time → details. `BookFlow` holds
+all client state in one component; availability is fetched from
+`/api/availability` (a **day offset** 1–10, never a calendar date) so the grid
+reflects live hours, closures and what is already booked.
 
-- Slots are **15 minutes** (`SLOT_MINUTES` in `lib/schedule.ts`).
-- **Opening hours have one source of truth: `CLINIC_WINDOWS` in
-  `lib/schedule.ts`** — 08:00–14:00 and 19:00–21:00, every day of the week.
-  The slot grid, `clinic.hours` in `lib/content.ts` (header, home, contact,
-  condition pages) and the `/staff/availability` table all derive from it.
-  Never hardcode a time string anywhere else.
-- The booking calendar is a **rolling window**: `MIN_ADVANCE_DAYS` (1, i.e.
-  tomorrow) to `MAX_ADVANCE_DAYS` (10) from today, computed in IST. The form
-  and `/api/booking` pass a **day offset** (1–10), never a calendar date, and
-  `isoForOffset()` turns it into an ISO date. `CLOSED_DATES` (a `Set` of ISO
-  strings, currently empty) is where staff leave/holidays go. `monthGrid()` in
-  the same file is the real-current-month helper the staff calendar view uses.
 - **Email and phone are both mandatory**, and the email must be verified by
   one-time code before a booking is accepted. `lib/otp.ts` issues an
   HMAC-signed token bound to that exact email+phone; `/api/booking` rejects
@@ -108,10 +136,26 @@ One shared credential, no roles or audit log. `proxy.ts` redirects
 unauthenticated page requests to `/staff/login` and 401s the APIs; the
 `(shell)` layout re-checks, and each `/api/staff/*` route checks again.
 
-`/staff/library` is a full CRUD editor for health-library articles — title,
-category, read time, date, author, excerpt, hero image upload and a
-block editor (heading / paragraph / note). Public library pages read from the
-store and are `force-dynamic`, so edits go live immediately.
+Working staff screens:
+
+- **`/staff`** — dashboard: today's list, pending requests (Confirm / Reschedule
+  / Decline), upcoming, cancelled. Status changes are server actions
+  (`updateStatusAction`).
+- **`/staff/appointments/[id]`** — status buttons + a notes field
+  (`saveNotesAction`). "Reschedule" only marks the status; there is no
+  new-slot picker yet.
+- **`/staff/calendar`** — read-only day/week/month views with ‹ › day
+  navigation; the day view's "Block" button on an open slot creates a 15-minute
+  closure via `blockSlotAction`.
+- **`/staff/availability`** — edits `schedule_hours` and `schedule_closures`
+  (see the Scheduling section).
+- **`/staff/library`** — full CRUD for articles: title, category, read time,
+  date, author, excerpt, hero image and a block editor (heading / paragraph /
+  note). Images are downscaled and JPEG-re-encoded **in the browser**
+  (`compressImage` in `ArticleAdmin.tsx`) before being stored as a data URL, so
+  rows stay small — do not remove that. Public library pages are
+  `force-dynamic`, so edits go live immediately.
+- **`/staff/notifications`** — reference content only, no controls.
 
 If per-user logins are ever needed, replace `lib/auth.ts` with a real provider
 (Clerk is available on the Vercel Marketplace); everything else checks through

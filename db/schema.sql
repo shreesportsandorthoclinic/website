@@ -57,3 +57,33 @@ create table if not exists otp_codes (
 
 create index if not exists otp_codes_email_idx on otp_codes (email);
 create index if not exists otp_codes_expires_at_idx on otp_codes (expires_at);
+
+-- ── Weekly clinic hours ────────────────────────────────────────────────
+-- One row per weekday (0 = Sunday … 6 = Saturday). `windows` is an array of
+-- [startMinute, endMinute] pairs from midnight, e.g. [[480,840],[1140,1260]]
+-- is 08:00–14:00 and 19:00–21:00. The booking slot grid and the staff
+-- availability screen both read this table. Missing rows fall back to the
+-- default windows in code, so the app works before this is seeded.
+create table if not exists schedule_hours (
+  weekday  integer primary key check (weekday between 0 and 6),
+  is_open  boolean not null default true,
+  windows  jsonb   not null default '[[480,840],[1140,1260]]'::jsonb
+);
+
+-- ── Closures and blocked time ─────────────────────────────────────────
+-- A full-day closure (from_min / to_min null) or a blocked time range on
+-- one date. Slots inside a closure are removed from the booking grid.
+create table if not exists schedule_closures (
+  id         text primary key,
+  date       text not null,          -- ISO yyyy-mm-dd
+  reason     text not null default '',
+  from_min   integer,                -- null with to_min null = whole day
+  to_min     integer,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists schedule_closures_date_idx on schedule_closures (date);
+
+-- Seed the seven weekday rows with the default hours (safe to re-run).
+insert into schedule_hours (weekday) values (0),(1),(2),(3),(4),(5),(6)
+on conflict (weekday) do nothing;

@@ -48,9 +48,19 @@ const sql = postgres(url, { prepare: false, max: 1 });
 
 async function main() {
   if (reset) {
-    await sql`truncate appointments, articles, otp_codes`;
-    console.log("cleared: appointments, articles, otp_codes");
+    await sql`truncate appointments, articles, otp_codes, schedule_closures`;
+    await sql`delete from schedule_hours`;
+    console.log("cleared: appointments, articles, otp_codes, schedule_closures, schedule_hours");
   }
+
+  /* Seven weekday rows with the default hours (08:00–14:00 & 19:00–21:00).
+     Safe to re-run — existing rows are left as the clinic set them. */
+  const hourRows = await sql`
+    insert into schedule_hours (weekday) values (0),(1),(2),(3),(4),(5),(6)
+    on conflict (weekday) do nothing
+    returning weekday
+  `;
+  console.log(`schedule_hours: ${hourRows.length} weekday rows created`);
 
   let insertedArticles = 0;
   for (const article of Object.values(articles)) {

@@ -49,6 +49,9 @@ function partsOf(iso: string) {
   return { y, m, d, weekday };
 }
 
+/** { y, m (1-based), d, weekday (0=Sun) } for an ISO date. */
+export const partsOfIso = partsOf;
+
 /** Today's date in the clinic's timezone, as an ISO string. */
 export function todayIso() {
   const { y, m, d } = clinicTodayParts();
@@ -140,7 +143,7 @@ function timeLabel(minutesFromMidnight: number) {
   return `${hour}:${String(minute).padStart(2, "0")} ${meridiem}`;
 }
 
-function buildSlots(windows: Array<[number, number]>): string[] {
+export function buildSlots(windows: Array<[number, number]>): string[] {
   const out: string[] = [];
   for (const [start, end] of windows) {
     for (let m = start; m <= end; m += SLOT_MINUTES) out.push(timeLabel(m));
@@ -148,12 +151,43 @@ function buildSlots(windows: Array<[number, number]>): string[] {
   return out;
 }
 
+/** Minutes-from-midnight for a slot label like "10:30 AM" or "5:00 PM". */
+export function slotLabelToMinutes(label: string): number {
+  const [clock, meridiem] = label.trim().split(" ");
+  const [rawHour, minute] = clock.split(":").map(Number);
+  const hour = (rawHour % 12) + (meridiem?.toUpperCase() === "PM" ? 12 : 0);
+  return hour * 60 + (minute || 0);
+}
+
+/** "08:00" (24h) → 480. Returns null on anything unparseable. */
+export function clockToMinutes(value: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/** 480 → "08:00" (24h). */
+export function minutesToClock(total: number): string {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 const H = (h: number, m = 0) => h * 60 + m;
 
-export const CLINIC_WINDOWS: Array<[number, number]> = [
+/** Fallback clinic hours, used when the schedule_hours table has no row for a
+    day (or does not exist yet). The staff availability screen overrides this
+    per weekday. */
+export const DEFAULT_WINDOWS: Array<[number, number]> = [
   [H(8), H(14)],
   [H(19), H(21)],
 ];
+
+/** @deprecated use DEFAULT_WINDOWS — kept for existing imports. */
+export const CLINIC_WINDOWS = DEFAULT_WINDOWS;
 
 function clockLabel(minutesFromMidnight: number) {
   const hour = Math.floor(minutesFromMidnight / 60);

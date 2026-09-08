@@ -2,7 +2,21 @@ import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  experimental: {
+    /* Server Actions (staff appointment status + notes) run a CSRF check that
+       compares the request Origin to the Host. Behind Cloudflare's proxy and
+       a custom domain those can differ, which rejects the action. List every
+       host the site is served from here. */
+    serverActions: {
+      allowedOrigins: [
+        "localhost:3000",
+        "shreesportsandortho.in",
+        "www.shreesportsandortho.in",
+        "website.workers.dev",
+        "*.workers.dev",
+      ],
+    },
+  },
 };
 
 export default nextConfig;

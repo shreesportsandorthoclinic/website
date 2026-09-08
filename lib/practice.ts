@@ -1,14 +1,13 @@
 import "server-only";
 
+import { cache } from "react";
+import { longLabelForOffset, monthGrid, shortDate, todayIso } from "./schedule";
 import {
-  CLINIC_WINDOW_LABELS,
-  CLOSED_DATES,
-  longLabelForOffset,
-  monthGrid,
-  shortDate,
+  getClosures,
+  getWeeklyHours,
   slotTimesForDate,
-  todayIso,
-} from "./schedule";
+  weekdayName,
+} from "./schedule-store";
 import { compareTimes, listAppointments } from "./store";
 import { occupiesSlot, type Appointment, type Status } from "./types";
 
@@ -18,9 +17,15 @@ const TODAY = todayIso();
 export { TODAY };
 export const TODAY_LABEL = longLabelForOffset(0);
 
+/* The staff pages read the appointment list several times per render (day,
+   week and month views, plus the dashboard tiles). cache() makes that one
+   query. Also keeps concurrent reads off the Supabase transaction pooler,
+   which stalls on pipelined queries. */
+const allAppointments = cache(listAppointments);
+
 /** Everything the dashboard needs, from one pass over the store. */
 export async function dashboard() {
-  const all = await listAppointments();
+  const all = await allAppointments();
   const today = all.filter((a) => a.date === TODAY);
   const upcoming = all.filter((a) => a.date > TODAY);
 
@@ -40,20 +45,23 @@ export async function dashboard() {
 }
 
 async function openSlotsOn(iso: string) {
-  const capacity = slotTimesForDate(iso).length;
-  const all = await listAppointments();
+  const capacity = (await slotTimesForDate(iso)).length;
+  const all = await allAppointments();
   const booked = all.filter((a) => a.date === iso && occupiesSlot(a.status)).length;
   return Math.max(capacity - booked, 0);
 }
 
-/** The day view: every slot the clinic offers today, filled or open. */
-export async function dayRows() {
-  const all = await listAppointments();
+/** The day view: every slot the clinic offers on `iso` (default today),
+    filled or open. */
+export async function dayRows(iso: string = TODAY) {
+  const all = await allAppointments();
   const byTime = new Map(
-    all.filter((a) => a.date === TODAY && occupiesSlot(a.status)).map((a) => [a.time, a]),
+    all.filter((a) => a.date === iso && occupiesSlot(a.status)).map((a) => [a.time, a]),
   );
 
-  return slotTimesForDate(TODAY)
+  const times = await slotTimesForDate(iso);
+  return times
+    .slice()
     .sort(compareTimes)
     .map((time) => ({ time, appointment: byTime.get(time) ?? null }));
 }
@@ -72,21 +80,23 @@ function currentWeekIsos() {
 }
 
 export async function weekColumns() {
-  const all = await listAppointments();
+  const all = await allAppointments();
 
-  return currentWeekIsos().map((iso) => {
+  const columns = [];
+  for (const iso of currentWeekIsos()) {
     const [y, m, d] = iso.split("-").map(Number);
     const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-    const capacity = slotTimesForDate(iso).length;
+    const capacity = (await slotTimesForDate(iso)).length;
     const booked = all.filter((a) => a.date === iso && occupiesSlot(a.status)).length;
-    return {
+    columns.push({
       name: `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday]} ${d}`,
       capacity,
       booked,
       open: Math.max(capacity - booked, 0),
       today: iso === TODAY,
-    };
-  });
+    });
+  }
+  return columns;
 }
 
 export type MonthCell =
@@ -94,7 +104,10 @@ export type MonthCell =
   | { blank: false; day: number; count: number; closed: boolean; today: boolean };
 
 export async function monthCells(): Promise<MonthCell[]> {
-  const all = await listAppointments();
+  const all = await allAppointments();
+  const week = await getWeeklyHours();
+  const closures = await getClosures();
+  const fullDayClosed = new Set(closures.filter((c) => c.fromMin == null).map((c) => c.date));
   const grid = monthGrid();
   const cells: MonthCell[] = [];
 
@@ -102,11 +115,13 @@ export async function monthCells(): Promise<MonthCell[]> {
 
   for (let day = 1; day <= grid.daysInMonth; day++) {
     const iso = grid.isoForDay(day);
+    const [y, m, d] = iso.split("-").map(Number);
+    const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
     cells.push({
       blank: false,
       day,
       count: all.filter((a) => a.date === iso && occupiesSlot(a.status)).length,
-      closed: CLOSED_DATES.has(iso),
+      closed: fullDayClosed.has(iso) || !week[weekday]?.isOpen,
       today: iso === TODAY,
     });
   }
@@ -114,22 +129,41 @@ export async function monthCells(): Promise<MonthCell[]> {
   return cells;
 }
 
-/* Same hours every day of the week — the windows come from
-   CLINIC_WINDOW_LABELS so this table and the bookable slot grid always
-   agree. See CLINIC_WINDOWS in lib/schedule.ts. */
-export const availabilityRows = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(
-  (day) => ({
-    day,
-    morning: CLINIC_WINDOW_LABELS[0],
-    evening: CLINIC_WINDOW_LABELS[1],
-    note: "Standard",
-  }),
-);
+/* Weekly hours as shown (and edited) on /staff/availability. Monday first,
+   read live from schedule_hours. */
+export type AvailabilityRow = {
+  weekday: number;
+  day: string;
+  isOpen: boolean;
+  windows: Array<[number, number]>;
+  labels: string[];
+};
 
-export const currentBlocks: Array<{ date: string; detail: string }> = [...CLOSED_DATES].map((iso) => ({
-  date: shortDate(iso),
-  detail: "Full day · Closed",
-}));
+export async function getAvailabilityRows(): Promise<AvailabilityRow[]> {
+  const week = await getWeeklyHours();
+  const order = [1, 2, 3, 4, 5, 6, 0]; // Mon–Sun
+  return order.map((weekday) => {
+    const row = week[weekday];
+    return {
+      weekday,
+      day: weekdayName(weekday),
+      isOpen: row.isOpen,
+      windows: row.windows,
+      labels: row.labels,
+    };
+  });
+}
+
+export async function getCurrentBlocks() {
+  const closures = await getClosures(TODAY);
+  return closures.map((c) => ({
+    id: c.id,
+    date: shortDate(c.date),
+    iso: c.date,
+    detail: c.fromMin == null ? "Full day · Closed" : `${c.summary} · Blocked`,
+    reason: c.reason,
+  }));
+}
 
 export const notifications = [
   {

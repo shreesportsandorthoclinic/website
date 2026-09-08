@@ -65,6 +65,17 @@ export async function isStaffRequest(request: { cookies: { get(name: string): { 
   return verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
 }
 
+/** For Server Actions: throws unless the caller has a valid staff session.
+    (`proxy.ts` already gates /staff, but Server Actions warrant their own
+    check — see the Next.js data-security guide.) */
+export async function requireStaffSession() {
+  const { cookies } = await import("next/headers");
+  const store = await cookies();
+  if (!(await verifySessionToken(store.get(SESSION_COOKIE)?.value))) {
+    throw new Error("Not signed in.");
+  }
+}
+
 export const sessionCookieOptions = {
   httpOnly: true,
   sameSite: "lax" as const,

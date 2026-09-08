@@ -38,7 +38,37 @@ const KIND_LABEL: Record<Block["kind"], string> = {
   note: "Note box",
 };
 
-const MAX_IMAGE_BYTES = 2_500_000;
+const MAX_IMAGE_BYTES = 12_000_000;
+
+/** Load an image file, scale it so the longest side is at most `maxSide`, and
+    return a JPEG data URL. Keeps stored images to a few hundred KB. */
+async function compressImage(file: File, maxSide: number, quality: number): Promise<string> {
+  const bitmap = await createImageBitmap(file).catch(async () => {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("decode failed"));
+        img.src = url;
+      });
+      return img as unknown as ImageBitmap;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  });
+
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no canvas context");
+  ctx.drawImage(bitmap as CanvasImageSource, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
 
 const panel = {
   border: "1px solid var(--color-divider)",
@@ -271,19 +301,26 @@ function Editor({
     );
   }
 
-  function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Choose an image file.");
+      return;
+    }
     if (file.size > MAX_IMAGE_BYTES) {
-      setError("That image is larger than 2.5 MB. Please use a smaller or compressed file.");
+      setError("That file is very large. Choose an image under 12 MB.");
       return;
     }
     setError("");
-    const reader = new FileReader();
-    reader.onload = () => {
-      set("image", { src: String(reader.result), alt: draft.image.alt || draft.title });
-    };
-    reader.readAsDataURL(file);
+    try {
+      /* Downscale and re-encode in the browser so the stored data URL stays
+         small (article rows and API responses carry it inline). */
+      const dataUrl = await compressImage(file, 1600, 0.82);
+      set("image", { src: dataUrl, alt: draft.image.alt || draft.title });
+    } catch {
+      setError("Could not read that image. Try a different file.");
+    }
   }
 
   async function save() {

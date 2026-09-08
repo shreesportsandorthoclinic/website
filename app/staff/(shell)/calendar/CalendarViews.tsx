@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { blockSlotAction } from "@/app/staff/actions";
 import StatusTag from "@/components/StatusTag";
 import type { MonthCell } from "@/lib/practice";
 import type { Appointment } from "@/lib/types";
@@ -14,10 +15,20 @@ export default function CalendarViews({
   dayRows,
   weekColumns,
   monthCells,
+  dayIso,
+  dayLabel,
+  prevDate,
+  nextDate,
+  isToday,
 }: {
   dayRows: DayRow[];
   weekColumns: WeekColumn[];
   monthCells: MonthCell[];
+  dayIso: string;
+  dayLabel: string;
+  prevDate: string;
+  nextDate: string;
+  isToday: boolean;
 }) {
   const [view, setView] = useState<View>("day");
 
@@ -66,17 +77,56 @@ export default function CalendarViews({
 
       {view === "day" && (
         <>
-          <p
+          <div
             style={{
-              fontSize: 13,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--color-neutral-700)",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
               margin: "0 0 16px",
+              flexWrap: "wrap",
             }}
           >
-            Wednesday 2 September · Dr. Neel
-          </p>
+            <Link
+              className="btn btn-ghost"
+              href={`/staff/calendar?date=${prevDate}`}
+              style={{ fontSize: 16, padding: "4px 10px" }}
+              aria-label="Previous day"
+            >
+              ‹
+            </Link>
+            <span
+              style={{
+                fontSize: 13,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--color-neutral-700)",
+              }}
+            >
+              {dayLabel} · Dr. Neel
+            </span>
+            <Link
+              className="btn btn-ghost"
+              href={`/staff/calendar?date=${nextDate}`}
+              style={{ fontSize: 16, padding: "4px 10px" }}
+              aria-label="Next day"
+            >
+              ›
+            </Link>
+            {!isToday && (
+              <Link className="btn btn-ghost" href="/staff/calendar" style={{ fontSize: 13 }}>
+                Today
+              </Link>
+            )}
+          </div>
+          {dayRows.length === 0 && (
+            <p style={{ fontSize: 15, color: "var(--color-neutral-700)" }}>
+              The clinic is closed on this day. Manage hours and closures under{" "}
+              <Link href="/staff/availability" style={{ color: "var(--color-accent-700)" }}>
+                Availability
+              </Link>
+              .
+            </p>
+          )}
           <div style={{ borderTop: "1px solid var(--color-divider)", maxWidth: 900 }}>
             {dayRows.map((row) => (
               <div
@@ -120,13 +170,17 @@ export default function CalendarViews({
                       </Link>
                     </>
                   ) : (
-                    <button
-                      className="btn btn-ghost"
-                      type="button"
-                      style={{ fontSize: 13, color: "var(--color-neutral-600)" }}
-                    >
-                      Block
-                    </button>
+                    <form action={blockSlotAction}>
+                      <input type="hidden" name="date" value={dayIso} />
+                      <input type="hidden" name="time" value={row.time} />
+                      <button
+                        className="btn btn-ghost"
+                        type="submit"
+                        style={{ fontSize: 13, color: "var(--color-neutral-600)" }}
+                      >
+                        Block
+                      </button>
+                    </form>
                   )}
                 </span>
               </div>
@@ -187,7 +241,7 @@ export default function CalendarViews({
             ))}
           </div>
           <p style={{ fontSize: 13, color: "var(--color-neutral-600)", marginTop: 14 }}>
-            Each bar is one 30-minute slot. Filled bars are booked.
+            Each bar is one 15-minute slot. Filled bars are booked.
           </p>
         </>
       )}
