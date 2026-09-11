@@ -7,11 +7,12 @@ import { shortDate } from "./schedule";
 
    Two independent channels, each turned on by its own env vars:
 
-   1. Email to the patient — booking verification codes, and confirm /
-      reschedule / cancel notices — via Resend's REST API (RESEND_API_KEY +
-      NOTIFY_FROM_EMAIL). Without them, everything below falls back to
-      logging to the server console so the flows stay testable in
-      development; a missing or failed send never fails the booking or
+   1. Email — booking verification codes and confirm/reschedule/cancel
+      notices to the patient, plus a copy of every new-booking alert to the
+      clinic's own inbox (clinic.email) — all via Resend's REST API
+      (RESEND_API_KEY + NOTIFY_FROM_EMAIL). Without them, everything below
+      falls back to logging to the server console so the flows stay testable
+      in development; a missing or failed send never fails the booking or
       status change that triggered it.
 
    2. New-booking alerts to the clinic — Telegram, via the Bot API
@@ -20,7 +21,10 @@ import { shortDate } from "./schedule";
       used to build the "open in staff area" link. Without the token the
       alert is logged and skipped — a booking never fails over it.
 
-   SMS/WhatsApp can be added here later behind the same functions. */
+   A new booking fires both the Telegram alert and the clinic-inbox email in
+   parallel — belt and braces, since a phone can be off or a message missed
+   but an inbox rarely is. SMS/WhatsApp can be added here later behind the
+   same functions. */
 
 type Channel = "email" | "console";
 type SendResult = { delivered: boolean; channel: Channel };
@@ -114,7 +118,7 @@ export async function notifyAppointmentRescheduled(
   );
 }
 
-/* ── new-booking alert to the clinic (Telegram) ───────────────────────── */
+/* ── new-booking alerts to the clinic (Telegram + email) ──────────────── */
 
 type BookingAlert = {
   id: string;
@@ -143,7 +147,7 @@ function longDate(iso: string) {
   });
 }
 
-export async function notifyNewBooking(booking: BookingAlert): Promise<{ delivered: boolean }> {
+async function telegramAlertNewBooking(booking: BookingAlert): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatIds = (process.env.TELEGRAM_CHAT_ID ?? "")
     .split(",")
@@ -152,7 +156,7 @@ export async function notifyNewBooking(booking: BookingAlert): Promise<{ deliver
 
   if (!token || chatIds.length === 0) {
     console.info(`[notify] new booking ${booking.reference} — Telegram not configured`);
-    return { delivered: false };
+    return false;
   }
 
   const siteUrl = process.env.SITE_URL?.replace(/\/+$/, "");
@@ -199,5 +203,47 @@ export async function notifyNewBooking(booking: BookingAlert): Promise<{ deliver
       console.error("[notify] Telegram request failed", error);
     }
   }
-  return { delivered };
+  return delivered;
+}
+
+async function emailAlertNewBooking(booking: BookingAlert): Promise<SendResult> {
+  const reason = booking.reason && booking.reason !== "—" ? booking.reason : "—";
+  const siteUrl = process.env.SITE_URL?.replace(/\/+$/, "");
+  const staffLink = siteUrl ? `${siteUrl}/staff/appointments/${booking.id}` : null;
+
+  return sendEmail(
+    clinic.email,
+    `New appointment request — ${booking.name} · ${longDate(booking.date)} at ${booking.time}`,
+    [
+      `New appointment request`,
+      ``,
+      `${booking.name} · ${booking.type}`,
+      `${longDate(booking.date)} at ${booking.time}`,
+      ``,
+      `Phone: ${booking.phone}`,
+      `Email: ${booking.email}`,
+      `Reason: ${reason}`,
+      ``,
+      `Reference: ${booking.reference}`,
+      staffLink ? `` : null,
+      staffLink ? `Open in staff area: ${staffLink}` : null,
+    ]
+      .filter((line) => line !== null)
+      .join("\n"),
+  );
+}
+
+/** Alerts the clinic to a new request on every channel that's configured —
+    Telegram (to the doctor's/front desk's phones) and email (to the clinic's
+    inbox, so there's a record even if a phone is off or the message is
+    missed). Either, both or neither can be wired up; a booking never fails
+    because a notification could not be sent. */
+export async function notifyNewBooking(
+  booking: BookingAlert,
+): Promise<{ telegram: boolean; email: boolean }> {
+  const [telegram, email] = await Promise.all([
+    telegramAlertNewBooking(booking),
+    emailAlertNewBooking(booking),
+  ]);
+  return { telegram, email: email.delivered };
 }

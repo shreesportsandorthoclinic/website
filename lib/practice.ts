@@ -207,7 +207,7 @@ export async function getCurrentBlocks() {
 export const notifications = [
   {
     when: "Immediately after booking",
-    channels: "Telegram (clinic)",
+    channels: "Telegram (clinic) + Email (clinic)",
     title: "New appointment request",
     body: "R. Prakash · New consultation · Tue 9 Sep at 11:00 AM · 📞 90000 00001. Open in staff area to confirm.",
   },

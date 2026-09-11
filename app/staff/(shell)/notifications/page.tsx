@@ -27,8 +27,9 @@ export default function NotificationsPage() {
           maxWidth: "60ch",
         }}
       >
-        Email (to the patient) and Telegram (to the clinic) are both live, once
-        RESEND_API_KEY/NOTIFY_FROM_EMAIL and TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID are set. SMS and
+        Email (to the patient) is live once RESEND_API_KEY/NOTIFY_FROM_EMAIL are set. A new
+        booking also alerts the clinic on every channel that's configured — Telegram
+        (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID) and a copy to the clinic's own inbox. SMS and
         WhatsApp are not implemented yet.
       </p>
 
