@@ -3,6 +3,26 @@ import "server-only";
 import type { Block } from "./content";
 import { getSql } from "./db";
 
+/* A query that would otherwise hang forever (seen on the Workers runtime
+   with a large jsonb parameter — a plain Node.js client against the same
+   database and the same query completes in well under a second, so this is
+   a workerd-specific stall, not a slow query) is turned into a clear timeout
+   error instead of a Worker that never responds and a UI stuck on "Saving…"
+   with no feedback. */
+const WRITE_TIMEOUT_MS = 20_000;
+
+function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Saving timed out (${label}). Try again, or a smaller image.`)),
+        WRITE_TIMEOUT_MS,
+      ),
+    ),
+  ]);
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    Health-library store — Supabase Postgres (`articles` table, created by
    db/schema.sql).
@@ -97,15 +117,18 @@ export async function createArticle(input: ArticleInput): Promise<LibraryArticle
   for (let attempt = 1; attempt <= 50; attempt++) {
     const key = attempt === 1 ? base : `${base}-${attempt}`;
     try {
-      const [row] = await sql<Row[]>`
-        insert into articles (key, title, category, read, date, author, excerpt, image, body)
-        values (
-          ${key}, ${input.title}, ${input.category}, ${input.read}, ${input.date},
-          ${input.author}, ${input.excerpt}, ${sql.json(input.image)}, ${sql.json(input.body)}
-        )
-        on conflict (key) do nothing
-        returning *
-      `;
+      const [row] = await withTimeout(
+        sql<Row[]>`
+          insert into articles (key, title, category, read, date, author, excerpt, image, body)
+          values (
+            ${key}, ${input.title}, ${input.category}, ${input.read}, ${input.date},
+            ${input.author}, ${input.excerpt}, ${sql.json(input.image)}, ${sql.json(input.body)}
+          )
+          on conflict (key) do nothing
+          returning *
+        `,
+        "create article",
+      );
       if (row) return toArticle(row);
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
@@ -119,20 +142,23 @@ export async function updateArticle(
   patch: Partial<ArticleInput>,
 ): Promise<LibraryArticle | null> {
   const sql = getSql();
-  const [row] = await sql<Row[]>`
-    update articles set
-      title = ${patch.title ?? sql`title`},
-      category = ${patch.category ?? sql`category`},
-      read = ${patch.read ?? sql`read`},
-      date = ${patch.date ?? sql`date`},
-      author = ${patch.author ?? sql`author`},
-      excerpt = ${patch.excerpt ?? sql`excerpt`},
-      image = ${patch.image ? sql.json(patch.image) : sql`image`},
-      body = ${patch.body ? sql.json(patch.body) : sql`body`},
-      updated_at = now()
-    where key = ${key}
-    returning *
-  `;
+  const [row] = await withTimeout(
+    sql<Row[]>`
+      update articles set
+        title = ${patch.title ?? sql`title`},
+        category = ${patch.category ?? sql`category`},
+        read = ${patch.read ?? sql`read`},
+        date = ${patch.date ?? sql`date`},
+        author = ${patch.author ?? sql`author`},
+        excerpt = ${patch.excerpt ?? sql`excerpt`},
+        image = ${patch.image ? sql.json(patch.image) : sql`image`},
+        body = ${patch.body ? sql.json(patch.body) : sql`body`},
+        updated_at = now()
+      where key = ${key}
+      returning *
+    `,
+    "update article",
+  );
   return row ? toArticle(row) : null;
 }
 

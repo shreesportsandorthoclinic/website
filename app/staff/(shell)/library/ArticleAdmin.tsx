@@ -341,11 +341,19 @@ function Editor({
     }
     setSaving(true);
     setError("");
+    /* The server-side write has its own timeout (lib/library.ts), but this
+       is a second, independent backstop: if the request never even reaches
+       the server, or the response never comes back for some other reason,
+       the button should stop saying "Saving…" forever rather than spin
+       indefinitely with no feedback. */
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
     try {
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draft),
+        signal: controller.signal,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -354,9 +362,15 @@ function Editor({
         return;
       }
       onSaved();
-    } catch {
-      setError("Could not reach the server.");
+    } catch (err) {
+      setError(
+        err instanceof DOMException && err.name === "AbortError"
+          ? "Saving took too long and was stopped. Try again, or use a smaller image."
+          : "Could not reach the server.",
+      );
       setSaving(false);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
