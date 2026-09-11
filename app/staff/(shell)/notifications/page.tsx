@@ -22,13 +22,14 @@ export default function NotificationsPage() {
       <p
         style={{
           fontSize: 14,
-          color: "var(--color-accent-2-700)",
+          color: "var(--color-neutral-700)",
           margin: "0 0 36px",
           maxWidth: "60ch",
         }}
       >
-        [ No delivery channel is connected yet. Email, SMS and WhatsApp integrations are not
-        implemented — these are designs for the content and timing. ]
+        Email (to the patient) and Telegram (to the clinic) are both live, once
+        RESEND_API_KEY/NOTIFY_FROM_EMAIL and TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID are set. SMS and
+        WhatsApp are not implemented yet.
       </p>
 
       <div

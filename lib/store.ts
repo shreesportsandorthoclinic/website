@@ -125,6 +125,36 @@ export async function setStatus(id: string, status: Status): Promise<Appointment
   return row ? toAppointment(row) : null;
 }
 
+/** Moves an appointment to a new date/time and marks it RESCHEDULED, atomically
+    refusing the move if another active appointment already holds that slot.
+    Throws SlotTakenError on a conflict, or a plain Error if `id` does not
+    exist at all. */
+export async function rescheduleAppointment(
+  id: string,
+  date: string,
+  time: string,
+): Promise<Appointment> {
+  const sql = getSql();
+  const rows = await sql<Row[]>`
+    update appointments
+    set date = ${date}, time = ${time}, status = 'RESCHEDULED'
+    where id = ${id}
+      and not exists (
+        select 1 from appointments
+        where date = ${date}
+          and time = ${time}
+          and status not in ('CANCELLED', 'NO-SHOW')
+          and id <> ${id}
+      )
+    returning *
+  `;
+  if (rows.length > 0) return toAppointment(rows[0]);
+
+  const [existing] = await sql<Row[]>`select * from appointments where id = ${id}`;
+  if (!existing) throw new Error("Appointment not found.");
+  throw new SlotTakenError();
+}
+
 export async function saveNotes(id: string, notes: string): Promise<Appointment | null> {
   const sql = getSql();
   const [row] = await sql<Row[]>`

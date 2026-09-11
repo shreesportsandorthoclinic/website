@@ -212,7 +212,7 @@ export const notifications = [
     body: "R. Prakash · New consultation · Tue 9 Sep at 11:00 AM · 📞 90000 00001. Open in staff area to confirm.",
   },
   {
-    when: "On confirm / decline / reschedule",
+    when: "On confirm / reschedule / cancel",
     channels: "Email (patient)",
     title: "Appointment confirmed",
     body: "Your appointment with Dr. Neel is confirmed for Tuesday 9 September at 11:00 AM, Shree Sports & Ortho Clinic, Electronic City Phase-1. Bring any previous reports and imaging. Ref SSO-260909-4417.",

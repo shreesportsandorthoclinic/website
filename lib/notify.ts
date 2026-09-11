@@ -1,30 +1,31 @@
 import "server-only";
 
 import { clinic } from "./content";
+import { shortDate } from "./schedule";
 
 /* Outbound notifications.
 
    Two independent channels, each turned on by its own env vars:
 
-   1. Booking verification codes to the patient — email, via Resend's REST
-      API (RESEND_API_KEY + NOTIFY_FROM_EMAIL). Without them the code is
-      logged to the server console so the flow is testable in development.
+   1. Email to the patient — booking verification codes, and confirm /
+      reschedule / cancel notices — via Resend's REST API (RESEND_API_KEY +
+      NOTIFY_FROM_EMAIL). Without them, everything below falls back to
+      logging to the server console so the flows stay testable in
+      development; a missing or failed send never fails the booking or
+      status change that triggered it.
 
    2. New-booking alerts to the clinic — Telegram, via the Bot API
       (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID). TELEGRAM_CHAT_ID may be a
       comma-separated list (e.g. the doctor and the front desk). SITE_URL is
       used to build the "open in staff area" link. Without the token the
-      alert is logged and skipped — a booking never fails because a
-      notification could not be sent.
+      alert is logged and skipped — a booking never fails over it.
 
    SMS/WhatsApp can be added here later behind the same functions. */
 
 type Channel = "email" | "console";
+type SendResult = { delivered: boolean; channel: Channel };
 
-export async function sendVerificationCode(
-  email: string,
-  code: string,
-): Promise<{ delivered: boolean; channel: Channel }> {
+async function sendEmail(to: string, subject: string, text: string): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.NOTIFY_FROM_EMAIL;
 
@@ -36,15 +37,7 @@ export async function sendVerificationCode(
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          from,
-          to: email,
-          subject: `Your ${clinic.name} booking code: ${code}`,
-          text:
-            `Your verification code is ${code}.\n\n` +
-            `Enter it on the booking page to confirm your appointment request. ` +
-            `It expires in 10 minutes. If you did not request this, ignore this email.`,
-        }),
+        body: JSON.stringify({ from, to, subject, text }),
       });
       if (res.ok) return { delivered: true, channel: "email" };
       console.error("[notify] Resend responded", res.status, await res.text().catch(() => ""));
@@ -53,8 +46,72 @@ export async function sendVerificationCode(
     }
   }
 
-  console.info(`[notify] verification code for ${email}: ${code}`);
+  console.info(`[notify] "${subject}" to ${to}:\n${text}`);
   return { delivered: false, channel: "console" };
+}
+
+export async function sendVerificationCode(email: string, code: string): Promise<SendResult> {
+  return sendEmail(
+    email,
+    `Your ${clinic.name} booking code: ${code}`,
+    `Your verification code is ${code}.\n\n` +
+      `Enter it on the booking page to confirm your appointment request. ` +
+      `It expires in 10 minutes. If you did not request this, ignore this email.`,
+  );
+}
+
+/* ── status-change notices to the patient ─────────────────────────────── */
+
+type PatientAppointment = {
+  name: string;
+  email: string;
+  type: string;
+  date: string;
+  time: string;
+  reference: string;
+};
+
+export async function notifyAppointmentConfirmed(appt: PatientAppointment): Promise<SendResult> {
+  return sendEmail(
+    appt.email,
+    `Appointment confirmed — ${shortDate(appt.date)} at ${appt.time}`,
+    `Hi ${appt.name},\n\n` +
+      `Your ${appt.type} appointment with ${clinic.name} is confirmed for ` +
+      `${shortDate(appt.date)} at ${appt.time}.\n\n` +
+      `Please bring any previous reports and imaging relevant to your visit.\n\n` +
+      `Reference: ${appt.reference}\n\n` +
+      `If you need to change this, reply to this email or call the clinic.`,
+  );
+}
+
+export async function notifyAppointmentCancelled(appt: PatientAppointment): Promise<SendResult> {
+  return sendEmail(
+    appt.email,
+    `Appointment cancelled — ${shortDate(appt.date)} at ${appt.time}`,
+    `Hi ${appt.name},\n\n` +
+      `Your ${appt.type} appointment with ${clinic.name} on ${shortDate(appt.date)} at ` +
+      `${appt.time} has been cancelled.\n\n` +
+      `Reference: ${appt.reference}\n\n` +
+      `If this was not expected, or you would like to book a new time, please contact the ` +
+      `clinic or use the booking page again.`,
+  );
+}
+
+export async function notifyAppointmentRescheduled(
+  appt: PatientAppointment,
+  previousDate: string,
+  previousTime: string,
+): Promise<SendResult> {
+  return sendEmail(
+    appt.email,
+    `Appointment rescheduled — new time ${shortDate(appt.date)} at ${appt.time}`,
+    `Hi ${appt.name},\n\n` +
+      `Your ${appt.type} appointment with ${clinic.name}, originally ${shortDate(previousDate)} ` +
+      `at ${previousTime}, has been moved to:\n\n` +
+      `${shortDate(appt.date)} at ${appt.time}\n\n` +
+      `Reference: ${appt.reference}\n\n` +
+      `If this new time does not work for you, please contact the clinic.`,
+  );
 }
 
 /* ── new-booking alert to the clinic (Telegram) ───────────────────────── */

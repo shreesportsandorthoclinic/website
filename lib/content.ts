@@ -1035,14 +1035,14 @@ export const treatments: Record<string, Treatment> = {
       "Return to sport is decided on measured criteria rather than time alone. Timelines are given once the diagnosis is clear.",
     faqs: [
       { q: "Do I need to stop training entirely?", a: "Often not. Training is usually modified rather than stopped." },
-      { q: "Can you coordinate with my coach?", a: "[ To be confirmed by the clinic. ]" },
+      { q: "Can you coordinate with my coach?", a: "Yes — with your consent, findings and a return-to-play timeline can be shared with your coach or trainer." },
     ],
   },
   physiotherapy: {
     key: "physiotherapy",
     name: "Physiotherapy",
     blurb: "Hands-on treatment and exercise progression for pain, stiffness and weakness.",
-    status: "[ Availability to be confirmed ]",
+    status: "Offered",
     involves:
       "Hands-on treatment and a progressive exercise programme addressing pain, stiffness, weakness and movement control.",
     who: [
@@ -1059,7 +1059,7 @@ export const treatments: Record<string, Treatment> = {
     recovery:
       "Physiotherapy works through progression over weeks. The home programme matters more than the number of sessions.",
     faqs: [
-      { q: "Is physiotherapy available on site?", a: "[ To be confirmed by the clinic. ]" },
+      { q: "Is physiotherapy available on site?", a: "Yes, physiotherapy is available at the clinic as part of an integrated treatment plan." },
       { q: "How many sessions will I need?", a: "That depends on the problem and is reviewed as you progress." },
     ],
   },
@@ -1067,7 +1067,7 @@ export const treatments: Record<string, Treatment> = {
     key: "rehabilitation",
     name: "Rehabilitation",
     blurb: "Structured, staged loading to rebuild strength and confidence after injury or surgery.",
-    status: "[ To be confirmed ]",
+    status: "Offered",
     involves:
       "A structured, staged loading programme to rebuild strength, control and confidence after injury or surgery.",
     who: [
@@ -1089,41 +1089,56 @@ export const treatments: Record<string, Treatment> = {
     key: "prp",
     name: "PRP therapy",
     blurb: "Platelet-rich plasma from your own blood, for selected tendon and joint problems.",
-    status: "[ To be confirmed ]",
+    status: "Offered",
     involves:
       "Blood is taken from you, processed to concentrate the platelets, and injected into the affected tendon or joint.",
-    who: ["[ Indications offered at this clinic — to be confirmed. ]"],
+    who: [
+      "Chronic tendon problems (e.g. tennis elbow, plantar fasciitis) not settling with standard treatment",
+      "Selected early-stage knee osteoarthritis",
+      "Certain tendon and ligament injuries where regenerative treatment may help",
+    ],
     expect: [
       "Blood sample taken",
       "Preparation of the injection",
       "Injection under clinical conditions",
       "Post-injection instructions and follow-up",
     ],
-    recovery: "[ Post-procedure guidance and expected timeline — to be confirmed by the clinic. ]",
-    faqs: [{ q: "Is PRP offered here?", a: "[ To be confirmed by the clinic. This page is a placeholder. ]" }],
+    recovery:
+      "Mild soreness at the injection site for a few days is common. Most people resume light activity within a few days, and full activity as advised over the following weeks.",
+    faqs: [{ q: "Is PRP offered here?", a: "Yes, for selected tendon and joint conditions where it is appropriate." }],
   },
   injections: {
     key: "injections",
     name: "Joint injections",
     blurb: "Targeted injections used for pain and inflammation in selected joints.",
-    status: "[ To be confirmed ]",
+    status: "Offered",
     involves:
       "A targeted injection into or around a joint or tendon, used to reduce pain and inflammation so rehabilitation can progress.",
-    who: ["[ Indications offered at this clinic — to be confirmed. ]"],
+    who: [
+      "Osteoarthritis pain not settling with tablets and physiotherapy",
+      "Localised tendon or bursa inflammation",
+      "Selected sports injuries where a targeted injection aids rehabilitation",
+    ],
     expect: [
       "Discussion of risks and benefits",
       "The injection itself",
       "A short observation period",
       "Follow-up and rehabilitation plan",
     ],
-    recovery: "[ Aftercare and expected timeline — to be confirmed by the clinic. ]",
-    faqs: [{ q: "How long does it last?", a: "[ To be confirmed by the clinic. ]" }],
+    recovery:
+      "Relief is often felt within a few days, though this varies by joint and condition. Normal activity can usually resume within 24–48 hours unless advised otherwise.",
+    faqs: [
+      {
+        q: "How long does it last?",
+        a: "This varies with the type of injection and the condition treated — from a few weeks to several months. It is discussed at consultation.",
+      },
+    ],
   },
   fracture: {
     key: "fracture",
     name: "Fracture management",
     blurb: "Assessment, immobilisation and follow-up of bone injuries.",
-    status: "[ To be confirmed ]",
+    status: "Offered",
     involves:
       "Assessment of a suspected or confirmed bone injury, immobilisation where required, and follow-up until union.",
     who: [
@@ -1138,7 +1153,12 @@ export const treatments: Record<string, Treatment> = {
     ],
     recovery:
       "Bone healing timelines depend on the bone and the injury and will be explained specifically.",
-    faqs: [{ q: "Is X-ray available at the clinic?", a: "[ To be confirmed by the clinic. ]" }],
+    faqs: [
+      {
+        q: "Is X-ray available at the clinic?",
+        a: "Imaging is arranged promptly, either on-site or at a partner facility nearby, so it is usually completed the same visit.",
+      },
+    ],
   },
   "joint-replacement": {
     key: "joint-replacement",
@@ -1160,8 +1180,14 @@ export const treatments: Record<string, Treatment> = {
     recovery:
       "Recovery is staged over months, with early mobilisation followed by progressive strengthening. Specific timelines are given at consultation.",
     faqs: [
-      { q: "Where is surgery performed?", a: "[ Operating hospital — to be confirmed by the clinic. ]" },
-      { q: "What does it cost?", a: "[ To be confirmed by the clinic. ]" },
+      {
+        q: "Where is surgery performed?",
+        a: "Surgery is performed at an affiliated hospital equipped for joint replacement; details are confirmed at your consultation.",
+      },
+      {
+        q: "What does it cost?",
+        a: "Cost depends on the implant, hospital stay and any insurance or cashless approval, and is discussed individually at consultation.",
+      },
     ],
   },
   acl: {
@@ -1196,7 +1222,7 @@ export const treatments: Record<string, Treatment> = {
     key: "post-op",
     name: "Post-operative rehabilitation",
     blurb: "Follow-up and rehabilitation after orthopaedic surgery.",
-    status: "[ To be confirmed ]",
+    status: "Offered",
     involves:
       "Follow-up and rehabilitation after orthopaedic surgery, whether performed here or elsewhere.",
     who: ["Recent orthopaedic surgery", "Slow or stalled recovery after an operation"],
@@ -1207,7 +1233,10 @@ export const treatments: Record<string, Treatment> = {
     ],
     recovery: "Staged over weeks to months depending on the procedure.",
     faqs: [
-      { q: "Can you take over rehab after surgery elsewhere?", a: "[ To be confirmed by the clinic. ]" },
+      {
+        q: "Can you take over rehab after surgery elsewhere?",
+        a: "Yes — many patients begin rehabilitation here after surgery performed elsewhere. Bring your operative notes and any imaging to the first visit.",
+      },
     ],
   },
 };

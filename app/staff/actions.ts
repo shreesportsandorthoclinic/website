@@ -3,13 +3,24 @@
 import { revalidatePath } from "next/cache";
 import { requireStaffSession } from "@/lib/auth";
 import {
+  notifyAppointmentCancelled,
+  notifyAppointmentConfirmed,
+  notifyAppointmentRescheduled,
+} from "@/lib/notify";
+import {
   addClosure,
   removeClosure,
   setWeekdayHours,
   type Window,
 } from "@/lib/schedule-store";
 import { clockToMinutes, slotLabelToMinutes, SLOT_MINUTES } from "@/lib/schedule";
-import { saveNotes, setStatus } from "@/lib/store";
+import {
+  getAppointment,
+  rescheduleAppointment,
+  saveNotes,
+  setStatus,
+  SlotTakenError,
+} from "@/lib/store";
 import { STATUSES, type Status } from "@/lib/types";
 
 /* Every action re-checks the session before touching the database. */
@@ -35,8 +46,50 @@ export async function updateStatusAction(formData: FormData) {
   const status = String(formData.get("status") ?? "");
   if (!id || !STATUSES.includes(status as Status)) return;
 
-  await setStatus(id, status as Status);
+  const appt = await setStatus(id, status as Status);
+
+  /* Tell the patient by email when it actually changes something they'd
+     want to know about. COMPLETED and NO-SHOW are clinic bookkeeping, not
+     news to the patient — RESCHEDULED goes through rescheduleAppointmentAction
+     below instead, since it also needs the new date/time. */
+  if (appt) {
+    if (status === "CONFIRMED") await notifyAppointmentConfirmed(appt);
+    if (status === "CANCELLED") await notifyAppointmentCancelled(appt);
+  }
+
   refreshAppointment(id);
+}
+
+/** Moves an appointment to a new date/time, chosen from the picker on
+    /staff/appointments/[id], and emails the patient the new slot. */
+export async function rescheduleAppointmentAction(
+  _prev: ScheduleActionState,
+  formData: FormData,
+): Promise<ScheduleActionState> {
+  try {
+    await requireStaffSession();
+    const id = String(formData.get("id") ?? "");
+    const date = String(formData.get("date") ?? "").trim();
+    const time = String(formData.get("time") ?? "").trim();
+
+    if (!id) return { ok: false, message: "Missing appointment." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !time) {
+      return { ok: false, message: "Choose a date and a time." };
+    }
+
+    const previous = await getAppointment(id);
+    if (!previous) return { ok: false, message: "Appointment not found." };
+
+    const updated = await rescheduleAppointment(id, date, time);
+    await notifyAppointmentRescheduled(updated, previous.date, previous.time);
+    refreshAppointment(id);
+    return { ok: true, message: "Rescheduled — the patient has been emailed." };
+  } catch (error) {
+    if (error instanceof SlotTakenError) {
+      return { ok: false, message: "That slot is already taken. Choose another time." };
+    }
+    return { ok: false, message: error instanceof Error ? error.message : "Could not reschedule." };
+  }
 }
 
 export async function saveNotesAction(formData: FormData) {

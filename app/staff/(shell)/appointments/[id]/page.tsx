@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import RescheduleForm from "@/components/RescheduleForm";
 import StatusButton from "@/components/StatusButton";
 import StatusTag from "@/components/StatusTag";
 import { shortDate } from "@/lib/schedule";
@@ -105,7 +106,7 @@ export default async function AppointmentPage({ params }: Params) {
                 id="notes"
                 name="notes"
                 defaultValue={appt.notes ?? ""}
-                placeholder="Notes are saved against this appointment. [ A full clinical records module still needs to be specified with the clinic. ]"
+                placeholder="Notes are saved against this appointment and visible only in the staff area."
                 style={{ minHeight: 140, fontSize: 16, borderRadius: 20 }}
               />
               <button className="btn btn-secondary" type="submit" style={{ fontSize: 12, padding: "12px 22px" }}>
@@ -141,12 +142,7 @@ export default async function AppointmentPage({ params }: Params) {
             className="btn btn-primary"
             style={{ fontSize: 12, padding: "14px 24px" }}
           />
-          <StatusButton
-            id={appt.id}
-            status="RESCHEDULED"
-            label="Reschedule"
-            style={{ fontSize: 12, padding: "14px 24px" }}
-          />
+          <RescheduleForm id={appt.id} currentDate={appt.date} currentTime={appt.time} />
           <StatusButton
             id={appt.id}
             status="COMPLETED"
@@ -178,10 +174,9 @@ export default async function AppointmentPage({ params }: Params) {
               lineHeight: 1.5,
             }}
           >
-            Cancelling or marking a no-show releases the slot for rebooking.{" "}
-            <span style={{ color: "var(--color-accent-2-700)" }}>
-              [ Notification delivery not yet integrated — the patient is not told. ]
-            </span>
+            Cancelling or marking a no-show releases the slot for rebooking. The patient is
+            emailed automatically when you confirm, reschedule or cancel — a no-show or completed
+            visit is not, since neither is news to them.
           </p>
         </aside>
       </div>
