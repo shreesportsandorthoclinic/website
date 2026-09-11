@@ -178,7 +178,14 @@ export function normaliseInput(body: Partial<ArticleInput>): ArticleInput | null
       new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }),
     author: body.author?.trim() || "Dr. Neel",
     excerpt: body.excerpt?.trim() || "",
-    image: { src: body.image?.src?.trim() || "", alt: body.image?.alt?.trim() || title },
+    /* Hero images are retired — a large inline data: URL through this write
+       path reliably hung on the Workers runtime (confirmed: the identical
+       query against the same database from plain Node.js completed in
+       under a second, so it isn't the database). Every save now clears the
+       image rather than accept one, so the failure mode can't recur; the
+       jsonb column stays in the schema (harmless, reversible) but nothing
+       reads or writes a real value into it any more. */
+    image: { src: "", alt: "" },
     body: Array.isArray(body.body)
       ? body.body
           .filter((b): b is Block => !!b && kinds.has(b.kind) && typeof b.text === "string")

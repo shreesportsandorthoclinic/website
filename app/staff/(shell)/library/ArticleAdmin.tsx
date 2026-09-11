@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { libraryCategories } from "@/lib/content";
 
@@ -14,7 +14,6 @@ type Article = {
   date: string;
   author: string;
   excerpt: string;
-  image: { src: string; alt: string };
   body: Block[];
   updatedAt: string;
 };
@@ -28,7 +27,6 @@ const BLANK: Draft = {
   date: "",
   author: "Dr. Neel",
   excerpt: "",
-  image: { src: "", alt: "" },
   body: [],
 };
 
@@ -37,47 +35,6 @@ const KIND_LABEL: Record<Block["kind"], string> = {
   p: "Paragraph",
   note: "Note box",
 };
-
-const MAX_IMAGE_BYTES = 12_000_000;
-
-/** Load an image file, scale it so the longest side is at most `maxSide`, and
-    return a JPEG data URL. Keeps stored images to a few hundred KB. */
-async function compressImage(file: File, maxSide: number, quality: number): Promise<string> {
-  const bitmap = await createImageBitmap(file).catch(async () => {
-    const url = URL.createObjectURL(file);
-    try {
-      const img = new Image();
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error("decode failed"));
-        img.src = url;
-      });
-      return img as unknown as ImageBitmap;
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  });
-
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("no canvas context");
-  ctx.drawImage(bitmap as CanvasImageSource, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", quality);
-}
-
-/** Rough KB size of a data URL, for the "stored with the article" readout —
-    lets whoever is uploading see when a photo came out unexpectedly large,
-    before they hit Save. */
-function formatDataUrlSize(dataUrl: string) {
-  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-  const bytes = Math.round((base64.length * 3) / 4);
-  return bytes > 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.round(bytes / 1000)} KB`;
-}
 
 const panel = {
   border: "1px solid var(--color-divider)",
@@ -136,7 +93,6 @@ export default function ArticleAdmin() {
                 date: editing.date,
                 author: editing.author,
                 excerpt: editing.excerpt,
-                image: editing.image,
                 body: editing.body,
               }
             : BLANK
@@ -184,7 +140,8 @@ export default function ArticleAdmin() {
         <Link href="/library" style={{ color: "var(--color-accent-700)" }}>
           /library
         </Link>
-        . Changes go live immediately.
+        . Changes go live immediately. Text only — hero images were retired after uploads
+        reliably hung on save.
       </p>
 
       {loading && <p style={{ color: "var(--color-neutral-600)" }}>Loading…</p>}
@@ -202,18 +159,6 @@ export default function ArticleAdmin() {
               flexWrap: "wrap",
             }}
           >
-            <div
-              style={{
-                width: 96,
-                height: 64,
-                flex: "none",
-                borderRadius: 10,
-                background: "var(--color-neutral-200)",
-                backgroundImage: a.image.src ? `url(${a.image.src})` : undefined,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            />
             <div style={{ flex: 1, minWidth: 200 }}>
               <p style={{ margin: 0, fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 17 }}>
                 {a.title}
@@ -282,7 +227,6 @@ function Editor({
   const [draft, setDraft] = useState<Draft>(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
@@ -310,30 +254,6 @@ function Editor({
     );
   }
 
-  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Choose an image file.");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("That file is very large. Choose an image under 12 MB.");
-      return;
-    }
-    setError("");
-    try {
-      /* Downscale and re-encode in the browser so the stored data URL stays
-         small (article rows and API responses carry it inline — a bigger
-         data URL means a bigger save request, and 1280px at this quality is
-         already well past what a hero image needs on the page). */
-      const dataUrl = await compressImage(file, 1280, 0.78);
-      set("image", { src: dataUrl, alt: draft.image.alt || draft.title });
-    } catch {
-      setError("Could not read that image. Try a different file.");
-    }
-  }
-
   async function save() {
     if (!draft.title.trim() || !draft.category.trim()) {
       setError("A title and a category are required.");
@@ -341,11 +261,9 @@ function Editor({
     }
     setSaving(true);
     setError("");
-    /* The server-side write has its own timeout (lib/library.ts), but this
-       is a second, independent backstop: if the request never even reaches
-       the server, or the response never comes back for some other reason,
-       the button should stop saying "Saving…" forever rather than spin
-       indefinitely with no feedback. */
+    /* A backstop, not the fix — text-only saves are small and fast, but this
+       still stops the button saying "Saving…" forever if a request somehow
+       never comes back. */
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
     try {
@@ -365,7 +283,7 @@ function Editor({
     } catch (err) {
       setError(
         err instanceof DOMException && err.name === "AbortError"
-          ? "Saving took too long and was stopped. Try again, or use a smaller image."
+          ? "Saving took too long and was stopped. Try again."
           : "Could not reach the server.",
       );
       setSaving(false);
@@ -477,69 +395,6 @@ function Editor({
             value={draft.excerpt}
             onChange={(e) => set("excerpt", e.target.value)}
             style={{ ...round, minHeight: 80 }}
-          />
-        </div>
-
-        <div style={panel}>
-          <p style={{ ...labelStyle, marginBottom: 10, fontWeight: 600 }}>Hero image</p>
-          {draft.image.src ? (
-            <>
-              <img
-                src={draft.image.src}
-                alt=""
-                style={{
-                  width: "100%",
-                  maxHeight: 240,
-                  objectFit: "cover",
-                  borderRadius: 12,
-                  marginBottom: 6,
-                }}
-              />
-              <p style={{ fontSize: 12, color: "var(--color-neutral-500)", margin: "0 0 12px" }}>
-                {formatDataUrlSize(draft.image.src)} — stored with the article
-              </p>
-            </>
-          ) : (
-            <p style={{ fontSize: 14, color: "var(--color-neutral-600)", margin: "0 0 12px" }}>
-              No image yet.
-            </p>
-          )}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              onChange={onPickImage}
-              style={{ display: "none" }}
-            />
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => fileRef.current?.click()}
-              style={{ fontSize: 12, padding: "9px 16px" }}
-            >
-              {draft.image.src ? "Replace image" : "Upload image"}
-            </button>
-            {draft.image.src && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => set("image", { src: "", alt: "" })}
-                style={{ fontSize: 12, padding: "9px 16px" }}
-              >
-                Remove
-              </button>
-            )}
-          </div>
-          <label style={{ ...labelStyle, marginTop: 12 }} htmlFor="ar-alt">
-            Image description (for accessibility)
-          </label>
-          <input
-            id="ar-alt"
-            className="input"
-            value={draft.image.alt}
-            onChange={(e) => set("image", { ...draft.image, alt: e.target.value })}
-            style={round}
           />
         </div>
 

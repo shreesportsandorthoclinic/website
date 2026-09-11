@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Photo from "@/components/Photo";
 import { type Block, libraryCategories } from "@/lib/content";
 
 type ListArticle = {
@@ -11,7 +10,6 @@ type ListArticle = {
   read: string;
   date: string;
   author: string;
-  image: { src: string; alt: string };
   excerpt: string;
   body: Block[];
 };
@@ -128,7 +126,6 @@ export default function LibraryList({ articles }: { articles: ListArticle[] }) {
                 color: "inherit",
               }}
             >
-              <Photo photo={a.image} ratio="16/10" style={{ marginBottom: 16 }} />
               <span
                 style={{
                   display: "block",
@@ -238,10 +235,6 @@ export default function LibraryList({ articles }: { articles: ListArticle[] }) {
             <p style={{ fontSize: 14, color: "var(--color-neutral-700)", margin: "0 0 28px" }}>
               {open.author} · {open.date}
             </p>
-
-            {open.image.src && (
-              <Photo photo={open.image} ratio="16/9" style={{ marginBottom: 32 }} />
-            )}
 
             {open.excerpt && (
               <p

@@ -660,7 +660,6 @@ export default async function HomePage() {
           {latestArticles.map((a) => {
             return (
               <Link key={a.key} href={`/library?a=${a.key}`} className="link-card title-link">
-                <Photo photo={a.image} ratio="16/10" style={{ marginBottom: 16 }} />
                 <span
                   style={{
                     display: "block",

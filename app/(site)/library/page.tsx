@@ -18,7 +18,6 @@ export default async function LibraryPage() {
     read: a.read,
     date: a.date,
     author: a.author,
-    image: a.image,
     excerpt: a.excerpt,
     body: a.body,
   }));

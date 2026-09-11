@@ -58,9 +58,17 @@ Setup:
 3. `npm run db:reset` empties every table and re-seeds articles, the seven
    `schedule_hours` weekday rows and demo appointments.
 
-Article hero images are still stored inline as data URLs in the `image` jsonb
-column. If they get large, move them to Supabase Storage — only `lib/library.ts`
-would change.
+Article hero images were retired — text only. Uploading one meant writing a
+large inline data: URL through `lib/library.ts`'s create/update queries, which
+reliably hung on the Cloudflare Workers runtime specifically (confirmed: the
+identical query against the same database from plain Node.js completed in
+under a second, so it isn't the database or Supabase's pooler). `normaliseInput`
+now always writes an empty image regardless of what's posted; the `image`
+jsonb column stays in the schema (harmless, reversible) but nothing reads or
+writes a real value into it. If this is revisited, the fix is almost
+certainly Supabase Storage (upload separately, store a URL) rather than
+inline data: URLs — worth trying that from the start rather than re-chasing
+the same hang.
 
 `DATABASE_URL` must also be set in the Cloudflare project's environment
 variables for production.
@@ -158,19 +166,23 @@ Working staff screens:
   / Decline), upcoming, cancelled. Status changes are server actions
   (`updateStatusAction`).
 - **`/staff/appointments/[id]`** — status buttons + a notes field
-  (`saveNotesAction`). "Reschedule" only marks the status; there is no
-  new-slot picker yet.
-- **`/staff/calendar`** — read-only day/week/month views with ‹ › day
-  navigation; the day view's "Block" button on an open slot creates a 15-minute
-  closure via `blockSlotAction`.
+  (`saveNotesAction`). "Reschedule" opens a real date/slot picker
+  (`components/RescheduleForm.tsx` → `rescheduleAppointmentAction`, reading
+  live availability from `/api/staff/slots`) and emails the patient the new
+  time. Confirm and cancel also email the patient
+  (`notifyAppointmentConfirmed`/`notifyAppointmentCancelled` in
+  `lib/notify.ts`); completed and no-show do not, since neither is news to
+  the patient.
+- **`/staff/calendar`** — day/week/month views with ‹ › day navigation. The
+  day view's "Block" button on an open slot creates a 15-minute closure via
+  `blockSlotAction` and shows blocked slots as "Busy" rather than hiding
+  them; the week view colours every slot (booked/open/blocked) with a legend.
 - **`/staff/availability`** — edits `schedule_hours` and `schedule_closures`
   (see the Scheduling section).
-- **`/staff/library`** — full CRUD for articles: title, category, read time,
-  date, author, excerpt, hero image and a block editor (heading / paragraph /
-  note). Images are downscaled and JPEG-re-encoded **in the browser**
-  (`compressImage` in `ArticleAdmin.tsx`) before being stored as a data URL, so
-  rows stay small — do not remove that. Public library pages are
-  `force-dynamic`, so edits go live immediately.
+- **`/staff/library`** — CRUD for articles: title, category, read time, date,
+  author, excerpt and a block editor (heading / paragraph / note). Text only
+  — hero images were retired, see the note in the Data stores section above.
+  Public library pages are `force-dynamic`, so edits go live immediately.
 - **`/staff/notifications`** — reference content only, no controls.
 
 If per-user logins are ever needed, replace `lib/auth.ts` with a real provider
