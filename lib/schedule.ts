@@ -58,14 +58,22 @@ export function todayIso() {
   return isoOf(y, m, d);
 }
 
+/** Minutes since midnight, right now, in the clinic's timezone (IST) — used
+    to hide today's slots that have already started. */
+export function nowMinutesInClinicDay() {
+  const ist = new Date(Date.now() + IST_OFFSET_MS);
+  return ist.getUTCHours() * 60 + ist.getUTCMinutes();
+}
+
 /** ISO date `offset` days from today (offset 0 = today). */
 export function isoForOffset(offset: number) {
   const { y, m, d } = clinicTodayParts();
   return isoOf(y, m, d + offset);
 }
 
-/** "Tue 9 Sep" */
+/** "Tue 9 Sep" — or "Today" for offset 0, on the booking day-picker. */
 export function labelForOffset(offset: number) {
+  if (offset === 0) return "Today";
   const { d, m, weekday } = partsOf(isoForOffset(offset));
   return `${WD_SHORT[weekday]} ${d} ${MONTHS[m - 1].slice(0, 3)}`;
 }
@@ -85,12 +93,15 @@ export function shortDate(iso: string) {
 /* ─────────────────────────────────────────────────────────────────────────
    Booking window.
 
-   A patient can book from MIN_ADVANCE_DAYS to MAX_ADVANCE_DAYS ahead — no
-   same-day bookings, nothing further out than ten days. The booking form
-   and /api/booking both pass a day as this offset from today, never a
-   calendar date, so the window slides forward on its own every night.
+   A patient can book from MIN_ADVANCE_DAYS to MAX_ADVANCE_DAYS ahead —
+   same-day is allowed (offset 0), nothing further out than ten days. The
+   booking form and /api/booking both pass a day as this offset from today,
+   never a calendar date, so the window slides forward on its own every
+   night. Same-day slots that have already started are filtered out by
+   lib/schedule-store.ts's slotTimesForDate — this module only knows the
+   offset window, not the time of day.
    ───────────────────────────────────────────────────────────────────────── */
-export const MIN_ADVANCE_DAYS = 1;
+export const MIN_ADVANCE_DAYS = 0;
 export const MAX_ADVANCE_DAYS = 10;
 
 /* Ad-hoc full-day closures (public holidays, leave), as ISO date strings.

@@ -35,9 +35,10 @@ export default function BookFlow({ initialWindow }: { initialWindow: BookingDay[
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState(false);
 
-  /* The bookable days: tomorrow through ten days out, with closed days
-     (weekly-off or clinic closure) flagged by the server. `day` above is the
-     offset into this window (1–10), not a calendar date. */
+  /* The bookable days: today through ten days out, with closed days
+     (weekly-off, clinic closure, or today once its slots have all passed)
+     flagged by the server. `day` above is the offset into this window
+     (0–10), not a calendar date. */
   const [window] = useState(initialWindow);
 
   /* Contact-detail verification. The clinic only receives a request once the
@@ -460,7 +461,7 @@ export default function BookFlow({ initialWindow }: { initialWindow: BookingDay[
                       color: "var(--color-neutral-600)",
                     }}
                   >
-                    Next {MAX_ADVANCE_DAYS} days
+                    Today + next {MAX_ADVANCE_DAYS} days
                   </span>
                 </div>
 
@@ -525,7 +526,7 @@ export default function BookFlow({ initialWindow }: { initialWindow: BookingDay[
                 </div>
 
                 <p style={{ marginTop: 16, fontSize: 12, color: "var(--color-neutral-700)" }}>
-                  Appointments can be requested from tomorrow up to {MAX_ADVANCE_DAYS} days ahead.
+                  Appointments can be requested from today up to {MAX_ADVANCE_DAYS} days ahead — same-day slots that have already started are not shown.
                 </p>
               </div>
 
@@ -546,13 +547,13 @@ export default function BookFlow({ initialWindow }: { initialWindow: BookingDay[
                   <span style={{ fontSize: 13, color: "var(--color-neutral-600)" }}>{dayLabel}</span>
                 </div>
 
-                {day && loadingSlots && (
+                {day != null && loadingSlots && (
                   <p style={{ fontSize: 15, color: "var(--color-neutral-600)" }}>
                     Checking the clinic&rsquo;s schedule…
                   </p>
                 )}
 
-                {day && !loadingSlots && slotsError && (
+                {day != null && !loadingSlots && slotsError && (
                   <p style={{ fontSize: 15, color: "var(--color-accent-2-700)" }}>
                     We couldn&rsquo;t load available times just now. Please try again in a moment, or
                     call the clinic on{" "}
@@ -563,13 +564,13 @@ export default function BookFlow({ initialWindow }: { initialWindow: BookingDay[
                   </p>
                 )}
 
-                {day && !loadingSlots && !slotsError && slots.length === 0 && (
+                {day != null && !loadingSlots && !slotsError && slots.length === 0 && (
                   <p style={{ fontSize: 15, color: "var(--color-neutral-700)" }}>
                     Nothing open on this date. Choose another day.
                   </p>
                 )}
 
-                {day && !loadingSlots && slots.length > 0 && (
+                {day != null && !loadingSlots && slots.length > 0 && (
                   <>
                     <div
                       style={{

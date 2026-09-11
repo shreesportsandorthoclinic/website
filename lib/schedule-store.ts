@@ -11,9 +11,11 @@ import {
   MAX_ADVANCE_DAYS,
   MIN_ADVANCE_DAYS,
   minutesToClock,
+  nowMinutesInClinicDay,
   partsOfIso,
   SLOT_MINUTES,
   slotLabelToMinutes,
+  todayIso,
 } from "./schedule";
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -251,9 +253,15 @@ export async function daySlots(iso: string): Promise<DaySlot[]> {
 }
 
 /** Slot labels a patient can actually request on a date. Empty means nothing
-    is bookable that day. */
+    is bookable that day. On today, slots that have already started are
+    excluded — same-day booking is allowed, but not for a time already
+    passed. */
 export async function slotTimesForDate(iso: string): Promise<string[]> {
-  return (await daySlots(iso)).filter((slot) => !slot.blocked).map((slot) => slot.time);
+  const open = (await daySlots(iso)).filter((slot) => !slot.blocked).map((slot) => slot.time);
+  if (iso !== todayIso()) return open;
+
+  const nowMin = nowMinutesInClinicDay();
+  return open.filter((time) => slotLabelToMinutes(time) >= nowMin);
 }
 
 export async function isDateBookable(iso: string): Promise<boolean> {
@@ -261,7 +269,8 @@ export async function isDateBookable(iso: string): Promise<boolean> {
 }
 
 /** The patient-facing chooser: MIN…MAX days out, each flagged if it is fully
-    closed (weekly-off or a full-day closure). */
+    closed (weekly-off, a full-day closure, or — for today only — every slot
+    has already started). */
 export async function getBookingWindow(): Promise<BookingDay[]> {
   const week = await getWeeklyHours();
   const closures = await getClosures(isoForOffset(MIN_ADVANCE_DAYS));
@@ -271,7 +280,8 @@ export async function getBookingWindow(): Promise<BookingDay[]> {
   for (let offset = MIN_ADVANCE_DAYS; offset <= MAX_ADVANCE_DAYS; offset++) {
     const iso = isoForOffset(offset);
     const { weekday } = partsOfIso(iso);
-    const closed = fullDay.has(iso) || !week[weekday]?.isOpen;
+    let closed = fullDay.has(iso) || !week[weekday]?.isOpen;
+    if (!closed && offset === 0) closed = (await slotTimesForDate(iso)).length === 0;
     days.push({ offset, iso, label: labelForOffset(offset), closed });
   }
   return days;

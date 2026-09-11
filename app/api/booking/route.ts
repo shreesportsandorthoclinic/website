@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
   if (!isBookable(day)) {
     return NextResponse.json(
-      { error: "Pick a day between tomorrow and ten days from now." },
+      { error: "Pick a day between today and ten days from now." },
       { status: 400 },
     );
   }

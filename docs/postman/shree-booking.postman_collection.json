@@ -6,7 +6,7 @@
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000" },
-    { "key": "day", "value": "1", "description": "Days from today: 1 = tomorrow … 10 = furthest bookable day." },
+    { "key": "day", "value": "1", "description": "Days from today: 0 = today, 1 = tomorrow … 10 = furthest bookable day." },
     { "key": "name", "value": "Postman Test" },
     { "key": "email", "value": "postman.test@example.com" },
     { "key": "phone", "value": "9876543210" },

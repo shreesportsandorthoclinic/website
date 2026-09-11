@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { slotsFor } from "@/lib/availability";
-import { isBookable, MAX_ADVANCE_DAYS } from "@/lib/schedule";
+import { isBookable, MAX_ADVANCE_DAYS, MIN_ADVANCE_DAYS } from "@/lib/schedule";
 
 /** GET /api/availability?day=3 — open and taken slot times for the day that
-    many days from today (1 = tomorrow … 10 = the furthest bookable day). */
+    many days from today (0 = today … 10 = the furthest bookable day). */
 export async function GET(request: Request) {
-  const day = Number(new URL(request.url).searchParams.get("day"));
+  const raw = new URL(request.url).searchParams.get("day");
+  const day = Number(raw);
 
-  if (!Number.isInteger(day) || day < 1 || day > MAX_ADVANCE_DAYS) {
+  /* `raw` must be present and non-empty — Number(null) and Number("") are
+     both 0, which would otherwise silently pass as "today" instead of being
+     rejected as a missing parameter. */
+  if (!raw || !Number.isInteger(day) || day < MIN_ADVANCE_DAYS || day > MAX_ADVANCE_DAYS) {
     return NextResponse.json({ error: "Unknown date." }, { status: 400 });
   }
 

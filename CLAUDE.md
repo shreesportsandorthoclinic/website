@@ -87,9 +87,12 @@ booted on, so `const TODAY = todayIso()` at the top of a module silently serves
 yesterday's date until the isolate recycles. Call `todayIso()` per request.
 
 **`lib/schedule.ts`** is pure date/time math (no DB): IST "today", the rolling
-booking window (`MIN_ADVANCE_DAYS` 1 → `MAX_ADVANCE_DAYS` 10), slot-label
-helpers, `DEFAULT_WINDOWS` (08:00–14:00 & 19:00–21:00), `SLOT_MINUTES` (15).
-Safe to import from client components.
+booking window (`MIN_ADVANCE_DAYS` 0, i.e. same-day is allowed → `MAX_ADVANCE_DAYS`
+10), slot-label helpers, `DEFAULT_WINDOWS` (08:00–14:00 & 19:00–21:00),
+`SLOT_MINUTES` (15). Safe to import from client components. Same-day slots
+that have already started are filtered out in `lib/schedule-store.ts`'s
+`slotTimesForDate` (via `nowMinutesInClinicDay()`), not here — this module
+only knows the day-offset window, not the clock.
 
 **`lib/schedule-store.ts`** is the live schedule, backed by two tables:
 

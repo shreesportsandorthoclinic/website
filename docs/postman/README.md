@@ -15,7 +15,8 @@ browser — and, right now, **without a working inbox**.
 
    | # | Request | What it does | Saves |
    | - | ------- | ------------ | ----- |
-   | 1 | `GET /api/availability?day=1` | Lists tomorrow's slots | `slot` (first free one) |
+   | 1 | `GET /api/availability?day=1` | Lists tomorrow's slots (`day=0` is today) | `slot` (first free one) |
+
    | 2 | `POST /api/otp/request` | Issues a 6-digit code | `otpId`, `code` |
    | 3 | `POST /api/otp/verify` | Trades the code for a token | `verificationToken` |
    | 4 | `POST /api/booking` | Creates the appointment | `reference` |
@@ -41,8 +42,10 @@ from filling the clinic's day with fake appointments.
 
 ## Things that will bite you
 
-- **`day` is an offset, not a date.** `1` = tomorrow, up to `10`. A calendar
-  date is never accepted.
+- **`day` is an offset, not a date.** `0` = today, up to `10`. A calendar date
+  is never accepted. Same-day (`day=0`) only shows slots that haven't started
+  yet — if you test late in the day there may be nothing left for today, so
+  `day=1` is the safer default while testing.
 - **`closed: true` from request 1** means the clinic is shut that day (weekly
   hours or a closure). Raise `day` and send again.
 - **429 on request 2** is the 30-second resend cooldown. Wait, then resend.

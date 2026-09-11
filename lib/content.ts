@@ -78,7 +78,7 @@ export function getDoctorFactsHome() {
    Grievance Officer, since the clinic does not have one appointed. */
 export const legal = {
   legalEntityName: "Shree Sports and Ortho Clinic",
-  registrationNumber: "[ Clinical establishment registration number ]",
+  registrationNumber: "BLU12577ALCWO",
   effectiveDate: "8 September 2026",
   dataRetentionPeriod: "1 year",
 };
