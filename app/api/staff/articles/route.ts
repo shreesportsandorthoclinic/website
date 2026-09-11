@@ -27,6 +27,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "A title and a category are required." }, { status: 400 });
   }
 
-  const article = await createArticle(normalised);
-  return NextResponse.json({ article }, { status: 201 });
+  try {
+    const article = await createArticle(normalised);
+    return NextResponse.json({ article }, { status: 201 });
+  } catch (error) {
+    /* Surface the real cause instead of a generic 500 with no body — this is
+       the only place a hero-image save failure (oversized payload, a bad
+       data URL, a DB error) becomes visible to the person testing it. */
+    console.error("[articles] create failed", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not save the article." },
+      { status: 500 },
+    );
+  }
 }

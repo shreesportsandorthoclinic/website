@@ -70,6 +70,15 @@ async function compressImage(file: File, maxSide: number, quality: number): Prom
   return canvas.toDataURL("image/jpeg", quality);
 }
 
+/** Rough KB size of a data URL, for the "stored with the article" readout —
+    lets whoever is uploading see when a photo came out unexpectedly large,
+    before they hit Save. */
+function formatDataUrlSize(dataUrl: string) {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const bytes = Math.round((base64.length * 3) / 4);
+  return bytes > 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.round(bytes / 1000)} KB`;
+}
+
 const panel = {
   border: "1px solid var(--color-divider)",
   borderRadius: 16,
@@ -315,8 +324,10 @@ function Editor({
     setError("");
     try {
       /* Downscale and re-encode in the browser so the stored data URL stays
-         small (article rows and API responses carry it inline). */
-      const dataUrl = await compressImage(file, 1600, 0.82);
+         small (article rows and API responses carry it inline — a bigger
+         data URL means a bigger save request, and 1280px at this quality is
+         already well past what a hero image needs on the page). */
+      const dataUrl = await compressImage(file, 1280, 0.78);
       set("image", { src: dataUrl, alt: draft.image.alt || draft.title });
     } catch {
       setError("Could not read that image. Try a different file.");
@@ -458,17 +469,22 @@ function Editor({
         <div style={panel}>
           <p style={{ ...labelStyle, marginBottom: 10, fontWeight: 600 }}>Hero image</p>
           {draft.image.src ? (
-            <img
-              src={draft.image.src}
-              alt=""
-              style={{
-                width: "100%",
-                maxHeight: 240,
-                objectFit: "cover",
-                borderRadius: 12,
-                marginBottom: 12,
-              }}
-            />
+            <>
+              <img
+                src={draft.image.src}
+                alt=""
+                style={{
+                  width: "100%",
+                  maxHeight: 240,
+                  objectFit: "cover",
+                  borderRadius: 12,
+                  marginBottom: 6,
+                }}
+              />
+              <p style={{ fontSize: 12, color: "var(--color-neutral-500)", margin: "0 0 12px" }}>
+                {formatDataUrlSize(draft.image.src)} — stored with the article
+              </p>
+            </>
           ) : (
             <p style={{ fontSize: 14, color: "var(--color-neutral-600)", margin: "0 0 12px" }}>
               No image yet.

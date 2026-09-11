@@ -33,9 +33,20 @@ export async function PUT(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "A title and a category are required." }, { status: 400 });
   }
 
-  const article = await updateArticle(key, normalised);
-  if (!article) return NextResponse.json({ error: "Not found." }, { status: 404 });
-  return NextResponse.json({ article });
+  try {
+    const article = await updateArticle(key, normalised);
+    if (!article) return NextResponse.json({ error: "Not found." }, { status: 404 });
+    return NextResponse.json({ article });
+  } catch (error) {
+    /* Surface the real cause instead of a generic 500 with no body — this is
+       the only place a hero-image save failure (oversized payload, a bad
+       data URL, a DB error) becomes visible to the person testing it. */
+    console.error("[articles] update failed", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not save the article." },
+      { status: 500 },
+    );
+  }
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {
