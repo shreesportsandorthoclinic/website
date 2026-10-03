@@ -29,6 +29,10 @@ import { shortDate } from "./schedule";
 type Channel = "email" | "console";
 type SendResult = { delivered: boolean; channel: Channel };
 
+export function isEmailConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY && process.env.NOTIFY_FROM_EMAIL);
+}
+
 async function sendEmail(to: string, subject: string, text: string): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.NOTIFY_FROM_EMAIL;

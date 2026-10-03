@@ -86,7 +86,7 @@ for the app to work.
 | `DATABASE_URL` | yes | Supabase transaction-pooler string (port 6543). Read by `lib/db.ts`. |
 | `SITE_URL` | no | The site's own public URL, for links inside notifications. Defaults to nothing (links are omitted). |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | no | New-booking alerts to the clinic on Telegram. `TELEGRAM_CHAT_ID` may be comma-separated. `npm run telegram:chat-id` helps find the id after the doctor messages the bot. Without these the alert is logged and skipped — a booking never fails over it. |
-| `RESEND_API_KEY`, `NOTIFY_FROM_EMAIL` | no | Real email delivery for booking OTPs. Without them the code is shown on screen and logged to the console — fine for dev, **no protection in production**. |
+| `RESEND_API_KEY`, `NOTIFY_FROM_EMAIL` | no | Real email delivery for booking OTPs. Without them, `npm run dev` shows the code on screen and logs it; a production build refuses to issue codes (503), so bookings stop until both are set. A configured-but-failed send also 503s — the code is never shown. Must be **Worker variables/secrets** (Settings → Variables and Secrets), not the account-level Secrets Store, which isn't bound and doesn't reach `process.env`. |
 
 ## Scheduling — hours, slots and closures
 
@@ -150,7 +150,7 @@ reflects live hours, closures and what is already booked.
 `docs/postman/` holds a Postman collection that walks the whole public flow —
 free slots → OTP request → verify → booking — chaining the ids and tokens
 automatically. It works today because `/api/otp/request` returns the code as
-`devCode` while `RESEND_API_KEY` is unset; once real email is on, the code has
+`devCode` under `npm run dev` while `RESEND_API_KEY` is unset; in production, or once real email is on, the code has
 to come from the inbox. There is deliberately **no** bypass of the
 verification token in `/api/booking`. See `docs/postman/README.md`.
 

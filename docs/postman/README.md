@@ -28,10 +28,11 @@ fires if `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` are set.
 
 ## Why this works before email is switched on
 
-`/api/otp/request` returns the code in the response as `devCode` **whenever
-there is no email provider configured** (`RESEND_API_KEY` unset) — see
-`app/api/otp/request/route.ts`. Request 3's test script picks it up
-automatically.
+`/api/otp/request` returns the code in the response as `devCode` **only in
+local development with no email provider configured** (`RESEND_API_KEY` /
+`NOTIFY_FROM_EMAIL` unset, `npm run dev`) — see `app/api/otp/request/route.ts`.
+Request 3's test script picks it up automatically. A production build never
+returns it: with email unconfigured, or a failed send, request 2 returns 503.
 
 **The moment you set `RESEND_API_KEY`, `devCode` stops being returned.** From
 then on: send request 2, read the code out of the inbox for `email`, paste it
