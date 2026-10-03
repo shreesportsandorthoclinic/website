@@ -423,3 +423,9 @@ textarea.input { min-height: 90px; resize: vertical; }
   .sub { display: none !important; }
   .sticky-aside { position: static !important; }
 }
+
+/* — printing (staff bills) — */
+@media print {
+  .no-print { display: none !important; }
+  body { background: #ffffff !important; }
+}

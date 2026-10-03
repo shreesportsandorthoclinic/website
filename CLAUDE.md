@@ -184,6 +184,23 @@ Working staff screens:
   — hero images were retired, see the note in the Data stores section above.
   Public library pages are `force-dynamic`, so edits go live immediately.
 - **`/staff/notifications`** — reference content only, no controls.
+- **`/staff/consult`** (doctor, in the consulting room) → **`/staff/billing`**
+  (reception, outside) — so prices never have to be said out loud. The
+  doctor picks the patient (today's appointments, or a typed-in walk-in),
+  exactly one consultation type (or "No consultation fee"), any radiology
+  and procedures with quantities, plus an optional note, and sends it. That
+  creates a `visits` row (status `AT_RECEPTION`) and marks a linked
+  appointment `COMPLETED`. Reception's page polls every few seconds
+  (`components/AutoRefresh.tsx`) and chimes on a new bill; reception can
+  add a one-off charge, apply a discount, record Cash/UPI/Card (assigns a
+  bill number from `bill_no_seq`) and print `/staff/billing/[id]`. The
+  doctor can "Withdraw" a bill until it's paid.
+- **`/staff/prices`** — the `price_items` list the doctor picks from. The
+  three consultation kinds are seeded by `db/schema.sql` at ₹0 — real
+  prices are the clinic's to enter; don't invent them. A visit stores a
+  snapshot of each line's name and price, so price edits never change past
+  bills. Logic is in `lib/billing.ts` (server) and `lib/billing-shared.ts`
+  (types + money math, client-safe); actions in `app/staff/billing-actions.ts`.
 
 If per-user logins are ever needed, replace `lib/auth.ts` with a real provider
 (Clerk is available on the Vercel Marketplace); everything else checks through

@@ -87,3 +87,53 @@ create index if not exists schedule_closures_date_idx on schedule_closures (date
 -- Seed the seven weekday rows with the default hours (safe to re-run).
 insert into schedule_hours (weekday) values (0),(1),(2),(3),(4),(5),(6)
 on conflict (weekday) do nothing;
+
+-- ── Price list ─────────────────────────────────────────────────────────
+-- What the clinic charges, edited on /staff/prices. `price` is whole rupees.
+-- Removing an item only sets active = false, so old bills still read right
+-- (each bill keeps its own copy of the name and price anyway — see visits).
+create table if not exists price_items (
+  id          text primary key,
+  category    text not null check (category in ('consultation', 'radiology', 'procedure')),
+  name        text not null,
+  price       integer not null default 0 check (price >= 0),
+  active      boolean not null default true,
+  sort        integer not null default 0,
+  created_at  timestamptz not null default now()
+);
+
+-- The three consultation kinds the doctor chooses between. Prices start at
+-- 0 — the clinic sets the real figures on /staff/prices.
+insert into price_items (id, category, name, sort) values
+  ('consult_walkin', 'consultation', 'Walk-in', 1),
+  ('consult_appt',   'consultation', 'Appointment (non-Practo)', 2),
+  ('consult_practo', 'consultation', 'Appointment (Practo)', 3)
+on conflict (id) do nothing;
+
+-- ── Visits: doctor → reception bills ───────────────────────────────────
+-- The doctor sends a visit from /staff/consult; reception bills it on
+-- /staff/billing. `items` is a snapshot —
+-- [{ "category", "name", "price", "qty", "byReception"? }] — so later price
+-- changes never alter a bill already raised.
+create table if not exists visits (
+  id              text primary key,
+  date            text not null,                 -- ISO yyyy-mm-dd (IST)
+  patient_name    text not null,
+  patient_phone   text not null default '',
+  patient_age     text not null default '',
+  appointment_id  text,
+  items           jsonb not null default '[]'::jsonb,
+  doctor_note     text not null default '',
+  status          text not null default 'AT_RECEPTION', -- AT_RECEPTION | PAID | VOID
+  discount        integer not null default 0 check (discount >= 0),
+  payment_method  text,                          -- CASH | UPI | CARD
+  bill_no         integer,
+  created_at      timestamptz not null default now(),
+  paid_at         timestamptz
+);
+
+create index if not exists visits_date_idx on visits (date);
+create index if not exists visits_status_idx on visits (status);
+
+-- Running bill numbers, handed out when a visit is marked paid.
+create sequence if not exists bill_no_seq;

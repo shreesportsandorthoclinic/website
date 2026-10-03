@@ -7,7 +7,10 @@ import { clinic } from "@/lib/content";
 const items = [
   { href: "/staff", label: "Dashboard" },
   { href: "/staff/calendar", label: "Calendar" },
+  { href: "/staff/consult", label: "Consult" },
+  { href: "/staff/billing", label: "Billing" },
   { href: "/staff/availability", label: "Availability" },
+  { href: "/staff/prices", label: "Prices" },
   { href: "/staff/library", label: "Library" },
   { href: "/staff/notifications", label: "Notifications" },
 ];
@@ -24,6 +27,7 @@ export default function PracticeNav() {
 
   return (
     <div
+      className="no-print"
       style={{
         display: "flex",
         alignItems: "center",
