@@ -11,6 +11,15 @@
     "nodejs_compat_populate_process_env",
     "global_fetch_strictly_public"
   ],
+  // Non-secret settings live here, not in the dashboard: every deploy makes
+  // this file the source of truth for plain-text vars and wipes any added in
+  // the dashboard (that is how NOTIFY_FROM_EMAIL kept vanishing and OTP
+  // emails kept failing). Secrets set with `wrangler secret put` or as
+  // "Encrypted" in the dashboard survive deploys — keep keys/passwords there.
+  "vars": {
+    "NOTIFY_FROM_EMAIL": "noreply@shreesportsandortho.in",
+    "SITE_URL": "https://shreesportsandortho.in"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"

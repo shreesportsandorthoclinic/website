@@ -75,8 +75,12 @@ variables for production.
 
 ## Environment variables
 
-All in `.env` locally (gitignored); set them as Cloudflare Worker environment
-variables / secrets for production. `STAFF_*` and `DATABASE_URL` are required
+All in `.env` locally (gitignored). In production, **secrets** (keys,
+passwords, `DATABASE_URL`) are Worker secrets ("Encrypted" in the dashboard,
+or `wrangler secret put`); **non-secret** values (`NOTIFY_FROM_EMAIL`,
+`SITE_URL`) go in `wrangler.jsonc` `vars`. Every deploy replaces the Worker's
+plain-text vars with that block, so a plain-text var added in the dashboard
+is silently deleted on the next push — that is what kept breaking OTP email. `STAFF_*` and `DATABASE_URL` are required
 for the app to work.
 
 | Variable | Required | Purpose |
