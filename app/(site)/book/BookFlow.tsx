@@ -746,15 +746,21 @@ export default function BookFlow({ initialWindow }: { initialWindow: BookingDay[
                   />
                 </div>
 
-                {/* honeypot — hidden from real users */}
+                {/* honeypot — hidden from real users. display:none, not
+                    off-screen: browsers only autofill fields that can take
+                    focus, and Chrome's autofill was filling the old
+                    off-screen version, so real patients were silently
+                    treated as bots (no OTP email, booking rejected). Bots
+                    that fill every input in the HTML still trip it. */}
                 <input
                   type="text"
+                  name="hp_extra_field"
                   tabIndex={-1}
                   autoComplete="off"
                   aria-hidden="true"
                   value={form.company}
                   onChange={(e) => setField("company")(e.target.value)}
-                  style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
+                  style={{ display: "none" }}
                 />
 
                 <div

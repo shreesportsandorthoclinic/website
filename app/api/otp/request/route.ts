@@ -13,6 +13,7 @@ export async function POST(request: Request) {
 
   /* Honeypot: real users never fill this hidden field. */
   if (body.company) {
+    console.warn("[otp] honeypot filled — no code sent", { email: body.email });
     return NextResponse.json({ id: "ignored", expiresInSeconds: CODE_TTL_SECONDS });
   }
 

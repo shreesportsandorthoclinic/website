@@ -52,6 +52,7 @@ export async function POST(request: Request) {
 
   /* Honeypot — real submissions leave this hidden field empty. */
   if (body.company) {
+    console.warn("[booking] honeypot filled — rejected", { email: body.email });
     return NextResponse.json({ error: "Request rejected." }, { status: 400 });
   }
 
