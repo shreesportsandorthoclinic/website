@@ -17,7 +17,7 @@
   // emails kept failing). Secrets set with `wrangler secret put` or as
   // "Encrypted" in the dashboard survive deploys — keep keys/passwords there.
   "vars": {
-    "NOTIFY_FROM_EMAIL": "noreply@shreesportsandortho.in",
+    "NOTIFY_FROM_EMAIL": "Shree Sports & Ortho Clinic <noreply@shreesportsandortho.in>",
     "SITE_URL": "https://shreesportsandortho.in"
   },
   "assets": {

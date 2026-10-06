@@ -29,28 +29,49 @@ import { shortDate } from "./schedule";
 type Channel = "email" | "console";
 type SendResult = { delivered: boolean; channel: Channel };
 
+/* Used when NOTIFY_FROM_EMAIL is unset, so a lost Worker var can't switch
+   email off — the domain is verified on Resend. NOTIFY_FROM_EMAIL (set in
+   wrangler.jsonc) still overrides it. */
+const DEFAULT_FROM = `${clinic.name} <noreply@shreesportsandortho.in>`;
+
+function fromAddress() {
+  return process.env.NOTIFY_FROM_EMAIL || DEFAULT_FROM;
+}
+
 export function isEmailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY && process.env.NOTIFY_FROM_EMAIL);
+  return Boolean(process.env.RESEND_API_KEY);
+}
+
+/** Worth trying again: rate limits, Resend-side errors, timeouts, network. */
+function transient(status: number) {
+  return status === 429 || status >= 500;
 }
 
 async function sendEmail(to: string, subject: string, text: string): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.NOTIFY_FROM_EMAIL;
 
-  if (apiKey && from) {
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ from, to, subject, text }),
-      });
-      if (res.ok) return { delivered: true, channel: "email" };
-      console.error("[notify] Resend responded", res.status, await res.text().catch(() => ""));
-    } catch (error) {
-      console.error("[notify] Resend request failed", error);
+  if (apiKey) {
+    /* Two tries, each capped at 10s so a stalled request can't hang the
+       booking page. Permanent rejections (bad key, bad address) aren't
+       retried — the log says why. */
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ from: fromAddress(), to, subject, text }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (res.ok) return { delivered: true, channel: "email" };
+        console.error("[notify] Resend responded", res.status, await res.text().catch(() => ""));
+        if (!transient(res.status)) break;
+      } catch (error) {
+        console.error("[notify] Resend request failed", error);
+      }
+      if (attempt === 1) await new Promise((r) => setTimeout(r, 800));
     }
   }
 
