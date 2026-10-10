@@ -424,6 +424,17 @@ textarea.input { min-height: 90px; resize: vertical; }
   .sticky-aside { position: static !important; }
 }
 
+/* — staff area — */
+.pnav-desk { display: flex; }
+.pnav-mob { display: none; }
+
+@media (max-width: 1080px) {
+  .pnav-desk { display: none !important; }
+  .pnav-mob { display: flex !important; }
+  /* staff pages set desktop padding inline; tighten it on phones */
+  .staff-body > main { padding: 20px 16px 64px !important; }
+}
+
 /* — printing (staff bills) — */
 @media print {
   .no-print { display: none !important; }

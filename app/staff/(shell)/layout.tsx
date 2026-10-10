@@ -12,7 +12,7 @@ export default async function PracticeLayout({ children }: { children: React.Rea
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
       <PracticeNav />
-      {children}
+      <div className="staff-body">{children}</div>
     </div>
   );
 }
