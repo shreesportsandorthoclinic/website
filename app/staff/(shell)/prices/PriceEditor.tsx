@@ -15,6 +15,7 @@ const HINT: Record<Category, string> = {
   consultation: "The doctor picks exactly one of these per patient (or “No consultation fee”).",
   radiology: "X-rays, scans and other imaging. The doctor can tick several, with a quantity each.",
   procedure: "Injections, dressings, plaster, aspirations and so on. Several allowed, with quantity.",
+  medicine: "Tablets, gels, braces and other items the clinic hands over. Several allowed, with quantity.",
 };
 
 function Msg({ state }: { state: BillingActionState }) {

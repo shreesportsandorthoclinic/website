@@ -94,13 +94,19 @@ on conflict (weekday) do nothing;
 -- (each bill keeps its own copy of the name and price anyway — see visits).
 create table if not exists price_items (
   id          text primary key,
-  category    text not null check (category in ('consultation', 'radiology', 'procedure')),
+  category    text not null,
   name        text not null,
   price       integer not null default 0 check (price >= 0),
   active      boolean not null default true,
   sort        integer not null default 0,
   created_at  timestamptz not null default now()
 );
+
+-- The allowed categories (lib/billing-shared.ts CATEGORIES). Dropped and
+-- re-added so an existing table picks up a new category on re-run.
+alter table price_items drop constraint if exists price_items_category_check;
+alter table price_items add constraint price_items_category_check
+  check (category in ('consultation', 'radiology', 'procedure', 'medicine'));
 
 -- The three consultation kinds the doctor chooses between. Prices start at
 -- 0 — the clinic sets the real figures on /staff/prices.

@@ -7,6 +7,7 @@ import {
   type BillingActionState,
 } from "@/app/staff/billing-actions";
 import {
+  CATEGORIES,
   CATEGORY_LABEL,
   rupees,
   totalDue,
@@ -110,7 +111,7 @@ function VisitForm({
     setPicks((current) => ({ ...current, [id]: Math.min(Math.max((current[id] ?? 1) + by, 1), 99) }));
   }
 
-  const everything = [...prices.consultation, ...prices.radiology, ...prices.procedure];
+  const everything = CATEGORIES.flatMap((category) => prices[category]);
   const priceOf = (id: string) => everything.find((i) => i.id === id)?.price ?? 0;
   const total =
     (consultation ? priceOf(consultation) : 0) +
@@ -212,8 +213,8 @@ function VisitForm({
         </div>
       </section>
 
-      {/* ── radiology & procedures: any number, with quantity ── */}
-      {(["radiology", "procedure"] as const).map((category, i) => (
+      {/* ── radiology, procedures & medicines: any number, with quantity ── */}
+      {(["radiology", "procedure", "medicine"] as const).map((category, i) => (
         <section key={category} style={{ marginBottom: 36 }}>
           <h2 className="sec-h" style={{ marginBottom: 14 }}>
             {i + 3} · {CATEGORY_LABEL[category]}

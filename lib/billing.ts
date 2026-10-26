@@ -47,7 +47,7 @@ type PriceRow = { id: string; category: Category; name: string; price: number; s
 
 /** Active items, grouped by category. Empty lists if the table is missing. */
 export async function getPriceList(): Promise<Record<Category, PriceItem[]>> {
-  const list: Record<Category, PriceItem[]> = { consultation: [], radiology: [], procedure: [] };
+  const list: Record<Category, PriceItem[]> = { consultation: [], radiology: [], procedure: [], medicine: [] };
   try {
     const sql = getSql();
     const rows = await sql<PriceRow[]>`

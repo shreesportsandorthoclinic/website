@@ -1,13 +1,14 @@
 /* Types and money math for the consult → billing flow. No database access,
    so client components can import it. Queries live in lib/billing.ts. */
 
-export const CATEGORIES = ["consultation", "radiology", "procedure"] as const;
+export const CATEGORIES = ["consultation", "radiology", "procedure", "medicine"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   consultation: "Consultation",
   radiology: "Radiology",
   procedure: "Procedure",
+  medicine: "Medicine",
 };
 
 export const PAYMENT_METHODS = ["CASH", "UPI", "CARD"] as const;

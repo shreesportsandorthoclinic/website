@@ -191,8 +191,8 @@ Working staff screens:
 - **`/staff/consult`** (doctor, in the consulting room) → **`/staff/billing`**
   (reception, outside) — so prices never have to be said out loud. The
   doctor picks the patient (today's appointments, or a typed-in walk-in),
-  exactly one consultation type (or "No consultation fee"), any radiology
-  and procedures with quantities, plus an optional note, and sends it. That
+  exactly one consultation type (or "No consultation fee"), any radiology,
+  procedures and medicines with quantities, plus an optional note, and sends it. That
   creates a `visits` row (status `AT_RECEPTION`) and marks a linked
   appointment `COMPLETED`. Reception's page polls every few seconds
   (`components/AutoRefresh.tsx`) and chimes on a new bill; reception can

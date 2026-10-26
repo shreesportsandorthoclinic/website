@@ -34,7 +34,7 @@ function failed(error: unknown, fallback: string): BillingActionState {
 /** The doctor's "Send to reception". Form fields:
       appointmentId?, name, phone, age, note,
       consultation   (a price-item id, or empty for none)
-      pick           (repeated; radiology / procedure price-item ids)
+      pick           (repeated; radiology / procedure / medicine price-item ids)
       qty_<id>       (quantity for each pick, default 1) */
 export async function sendVisitAction(
   _prev: BillingActionState,
