@@ -1,5 +1,13 @@
 import "server-only";
 
+import {
+  billNumber,
+  PAYMENT_LABEL,
+  rupees,
+  subtotal,
+  totalDue,
+  type Visit,
+} from "./billing-shared";
 import { clinic } from "./content";
 import { shortDate } from "./schedule";
 
@@ -140,6 +148,48 @@ export async function notifyAppointmentRescheduled(
       `${shortDate(appt.date)} at ${appt.time}\n\n` +
       `Reference: ${appt.reference}\n\n` +
       `If this new time does not work for you, please contact the clinic.`,
+  );
+}
+
+/* ── bill / receipt to the patient ────────────────────────────────────── */
+
+/** The same lines as the printed bill on /staff/billing/[id], as plain text. */
+export async function sendBill(visit: Visit, email: string): Promise<SendResult> {
+  const paid = visit.status === "PAID";
+  const lines = visit.items.map(
+    (line) =>
+      `${line.name}${line.qty > 1 ? ` × ${line.qty} @ ${rupees(line.price)}` : ""} — ` +
+      rupees(line.price * line.qty),
+  );
+
+  return sendEmail(
+    email,
+    paid
+      ? `Receipt ${billNumber(visit.billNo)} — ${clinic.name}`
+      : `Your bill — ${clinic.name}, ${shortDate(visit.date)}`,
+    [
+      `Hi ${visit.patientName},`,
+      ``,
+      paid
+        ? `Thank you for visiting ${clinic.name}. Here is your receipt.`
+        : `Here is your bill from ${clinic.name}.`,
+      ``,
+      paid ? `Bill no.: ${billNumber(visit.billNo)}` : null,
+      `Date: ${shortDate(visit.date)}`,
+      ``,
+      ...lines,
+      ``,
+      `Subtotal: ${rupees(subtotal(visit.items))}`,
+      visit.discount > 0 ? `Discount: − ${rupees(visit.discount)}` : null,
+      `${paid ? "Total paid" : "Total due"}: ${rupees(totalDue(visit))}`,
+      paid && visit.paymentMethod ? `Paid by ${PAYMENT_LABEL[visit.paymentMethod]}.` : null,
+      ``,
+      `${clinic.doctor.fullName} · ${clinic.doctor.title}`,
+      clinic.addressLines.join(", "),
+      `${clinic.phone} · ${clinic.email}`,
+    ]
+      .filter((line) => line !== null)
+      .join("\n"),
   );
 }
 

@@ -5,6 +5,8 @@ import { getVisit } from "@/lib/billing";
 import { billNumber, PAYMENT_LABEL, rupees, subtotal, totalDue } from "@/lib/billing-shared";
 import { clinic } from "@/lib/content";
 import { shortDate } from "@/lib/schedule";
+import { getAppointment } from "@/lib/store";
+import EmailBill from "./EmailBill";
 import PrintButton from "./PrintButton";
 
 export const metadata: Metadata = { title: "Practice — bill" };
@@ -16,6 +18,8 @@ export default async function BillPage({ params }: Params) {
   const { id } = await params;
   const visit = await getVisit(id);
   if (!visit) notFound();
+  /* A booked patient gave (and verified) an email at booking — offer it. */
+  const email = visit.appointmentId ? ((await getAppointment(visit.appointmentId))?.email ?? "") : "";
 
   const paid = visit.status === "PAID";
   const facts = [
@@ -32,6 +36,7 @@ export default async function BillPage({ params }: Params) {
           ← Billing
         </Link>
         <PrintButton />
+        {visit.status !== "VOID" && <EmailBill visitId={visit.id} defaultEmail={email} />}
       </div>
 
       <article

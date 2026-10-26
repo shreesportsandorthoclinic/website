@@ -197,7 +197,8 @@ Working staff screens:
   appointment `COMPLETED`. Reception's page polls every few seconds
   (`components/AutoRefresh.tsx`) and chimes on a new bill; reception can
   add a one-off charge, apply a discount, record Cash/UPI/Card (assigns a
-  bill number from `bill_no_seq`) and print `/staff/billing/[id]`. The
+  bill number from `bill_no_seq`), and print or email `/staff/billing/[id]`
+  (the email box is prefilled from the booking; walk-ins type one in). The
   doctor can "Withdraw" a bill until it's paid.
 - **`/staff/prices`** — the `price_items` list the doctor picks from. The
   three consultation kinds are seeded by `db/schema.sql` at ₹0 — real

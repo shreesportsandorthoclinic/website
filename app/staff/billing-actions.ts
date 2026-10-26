@@ -6,6 +6,7 @@ import {
   addCharge,
   addPriceItem,
   createVisit,
+  getVisit,
   markPaid,
   removeCharge,
   removePriceItem,
@@ -13,6 +14,7 @@ import {
   voidVisit,
 } from "@/lib/billing";
 import { CATEGORIES, PAYMENT_METHODS, type Category, type PaymentMethod } from "@/lib/billing-shared";
+import { isEmailConfigured, sendBill } from "@/lib/notify";
 import { todayIso } from "@/lib/schedule";
 import { getAppointment, setStatus } from "@/lib/store";
 
@@ -131,6 +133,32 @@ export async function markPaidAction(
     return { ok: true, message: "Paid." };
   } catch (error) {
     return failed(error, "Could not record the payment.");
+  }
+}
+
+/** "Send by email" on the bill page. Form fields: id, email. */
+export async function emailBillAction(
+  _prev: BillingActionState,
+  formData: FormData,
+): Promise<BillingActionState> {
+  try {
+    await requireStaffSession();
+    const email = String(formData.get("email") ?? "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, message: "Enter a valid email address." };
+    const visit = await getVisit(String(formData.get("id") ?? ""));
+    if (!visit) return { ok: false, message: "This bill no longer exists." };
+    if (visit.status === "VOID") return { ok: false, message: "This bill was withdrawn." };
+
+    const result = await sendBill(visit, email);
+    if (result.delivered) return { ok: true, message: `Sent to ${email}.` };
+    return {
+      ok: false,
+      message: isEmailConfigured()
+        ? "The email could not be sent — try again in a minute."
+        : "Email is not set up (RESEND_API_KEY) — the bill was only logged.",
+    };
+  } catch (error) {
+    return failed(error, "Could not send the email.");
   }
 }
 
