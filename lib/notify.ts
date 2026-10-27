@@ -1,13 +1,7 @@
 import "server-only";
 
-import {
-  billNumber,
-  PAYMENT_LABEL,
-  rupees,
-  subtotal,
-  totalDue,
-  type Visit,
-} from "./billing-shared";
+import { billPdfFilename, renderBillPdf } from "./bill-pdf";
+import { billNumber, type Visit } from "./billing-shared";
 import { clinic } from "./content";
 import { shortDate } from "./schedule";
 
@@ -55,7 +49,15 @@ function transient(status: number) {
   return status === 429 || status >= 500;
 }
 
-async function sendEmail(to: string, subject: string, text: string): Promise<SendResult> {
+/** Resend takes attachment content as base64. */
+type Attachment = { filename: string; content: string };
+
+async function sendEmail(
+  to: string,
+  subject: string,
+  text: string,
+  attachments?: Attachment[],
+): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
 
   if (apiKey) {
@@ -70,7 +72,7 @@ async function sendEmail(to: string, subject: string, text: string): Promise<Sen
             Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ from: fromAddress(), to, subject, text }),
+          body: JSON.stringify({ from: fromAddress(), to, subject, text, attachments }),
           signal: AbortSignal.timeout(10_000),
         });
         if (res.ok) return { delivered: true, channel: "email" };
@@ -83,7 +85,8 @@ async function sendEmail(to: string, subject: string, text: string): Promise<Sen
     }
   }
 
-  console.info(`[notify] "${subject}" to ${to}:\n${text}`);
+  const attached = attachments?.length ? `\n[attached: ${attachments.map((a) => a.filename).join(", ")}]` : "";
+  console.info(`[notify] "${subject}" to ${to}:\n${text}${attached}`);
   return { delivered: false, channel: "console" };
 }
 
@@ -153,14 +156,11 @@ export async function notifyAppointmentRescheduled(
 
 /* ── bill / receipt to the patient ────────────────────────────────────── */
 
-/** The same lines as the printed bill on /staff/billing/[id], as plain text. */
+/** The printed bill from /staff/billing/[id] as a PDF attachment
+    (lib/bill-pdf.ts), with a short covering note as the body. */
 export async function sendBill(visit: Visit, email: string): Promise<SendResult> {
   const paid = visit.status === "PAID";
-  const lines = visit.items.map(
-    (line) =>
-      `${line.name}${line.qty > 1 ? ` × ${line.qty} @ ${rupees(line.price)}` : ""} — ` +
-      rupees(line.price * line.qty),
-  );
+  const pdf = renderBillPdf(visit);
 
   return sendEmail(
     email,
@@ -171,25 +171,14 @@ export async function sendBill(visit: Visit, email: string): Promise<SendResult>
       `Hi ${visit.patientName},`,
       ``,
       paid
-        ? `Thank you for visiting ${clinic.name}. Here is your receipt.`
-        : `Here is your bill from ${clinic.name}.`,
-      ``,
-      paid ? `Bill no.: ${billNumber(visit.billNo)}` : null,
-      `Date: ${shortDate(visit.date)}`,
-      ``,
-      ...lines,
-      ``,
-      `Subtotal: ${rupees(subtotal(visit.items))}`,
-      visit.discount > 0 ? `Discount: − ${rupees(visit.discount)}` : null,
-      `${paid ? "Total paid" : "Total due"}: ${rupees(totalDue(visit))}`,
-      paid && visit.paymentMethod ? `Paid by ${PAYMENT_LABEL[visit.paymentMethod]}.` : null,
+        ? `Thank you for visiting ${clinic.name}. Your receipt for ${shortDate(visit.date)} is attached.`
+        : `Your bill from ${clinic.name} for ${shortDate(visit.date)} is attached.`,
       ``,
       `${clinic.doctor.fullName} · ${clinic.doctor.title}`,
       clinic.addressLines.join(", "),
       `${clinic.phone} · ${clinic.email}`,
-    ]
-      .filter((line) => line !== null)
-      .join("\n"),
+    ].join("\n"),
+    [{ filename: billPdfFilename(visit), content: Buffer.from(pdf).toString("base64") }],
   );
 }
 

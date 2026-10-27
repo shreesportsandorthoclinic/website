@@ -199,6 +199,11 @@ Working staff screens:
   add a one-off charge, apply a discount, record Cash/UPI/Card (assigns a
   bill number from `bill_no_seq`), and print or email `/staff/billing/[id]`
   (the email box is prefilled from the booking; walk-ins type one in). The
+  email carries the bill as a PDF attachment (`lib/bill-pdf.ts`), a
+  hand-written PDF writer — **don't swap in pdf-lib/fontkit**: they pushed
+  the Worker past the 3 MB free-plan limit. Its fonts, ₹ outline and logo
+  are generated into `lib/bill-pdf-assets.ts`; it mirrors the bill page's
+  layout, so change both together. The
   doctor can "Withdraw" a bill until it's paid.
 - **`/staff/prices`** — the `price_items` list the doctor picks from. The
   three consultation kinds are seeded by `db/schema.sql` at ₹0 — real
